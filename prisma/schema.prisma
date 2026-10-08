@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  displayName String   @default("Player")
+  createdAt   DateTime @default(now())
+  profile     Profile?
+  gamesAsP1   Game[]   @relation("PlayerOne")
+  gamesAsP2   Game[]   @relation("PlayerTwo")
+}
+
+model Profile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Game {
+  id            String     @id @default(cuid())
+  clientId      String     @unique
+  ruleset       String     @default("abapa")
+  mode          String
+  status        String
+  endReason     String
+  winner        String?
+  scoreP1       Int
+  scoreP2       Int
+  timeControlMs Int
+  player1UserId String?
+  player1       User?      @relation("PlayerOne", fields: [player1UserId], references: [id])
+  player2UserId String?
+  player2       User?      @relation("PlayerTwo", fields: [player2UserId], references: [id])
+  player1Name   String
+  player2Name   String
+  aiDifficulty  String?
+  startedAt     DateTime
+  endedAt       DateTime   @default(now())
+  moves         GameMove[]
+
+  @@index([player1UserId])
+  @@index([player2UserId])
+}
+
+model GameMove {
+  id         String   @id @default(cuid())
+  gameId     String
+  game       Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  moveNumber Int
+  player     String
+  pit        Int
+  createdAt  DateTime @default(now())
+
+  @@unique([gameId, moveNumber])
+  @@index([gameId])
+}

@@ -1,26 +1,215 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-source), "Source Sans 3", sans-serif;
+  --font-serif: var(--font-fraunces), Georgia, serif;
+  --color-cream: #f3eee6;
+  --color-paper: #fffcf8;
+  --color-ink: #1c1612;
+  --color-ink-soft: #5e534a;
+  --color-line: #e3d7c8;
+  --color-clay: #c4622d;
+  --color-clay-dark: #9a4a1f;
+  --color-walnut: #6b3f28;
+  --color-walnut-deep: #3e2418;
+  --color-pit: #24160f;
+  --color-seed: #f4e7cb;
+  --color-forest: #2c6b4a;
+  --color-forest-dark: #1f4d36;
+  --color-good: #2c6b4a;
+  --color-bad: #8d3b32;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--color-cream);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100%;
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid #e7b15a;
+  outline-offset: 3px;
+}
+
+.board-slab {
+  position: relative;
+  background: #6b3f28;
+  border-radius: 32px;
+  padding: 22px 16px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 236 214 / 0.28),
+    inset 0 -14px 28px rgb(40 18 8 / 0.38),
+    0 18px 40px rgb(62 36 24 / 0.16);
+}
+
+.board-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  border-radius: 18px;
+}
+
+.board-row.is-active {
+  box-shadow: inset 0 0 0 1px rgb(231 177 90 / 0.45);
+}
+
+.board-groove {
+  height: 10px;
+  margin: 2px 8px;
+  border-radius: 999px;
+  background: rgb(42 22 12 / 0.45);
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.35);
+}
+
+.pit {
+  position: relative;
+  aspect-ratio: 1;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: radial-gradient(circle at 50% 40%, #3c2619 0%, #1a0e09 74%);
+  box-shadow:
+    inset 0 10px 16px rgb(0 0 0 / 0.48),
+    inset 0 -2px 0 rgb(255 220 180 / 0.08);
+  color: inherit;
+  padding: 0;
+}
+
+.pit.is-legal {
+  cursor: pointer;
+  box-shadow:
+    inset 0 10px 16px rgb(0 0 0 / 0.48),
+    0 0 0 2px rgb(244 196 140 / 0.95);
+}
+
+.pit.is-legal:hover {
+  transform: translateY(-1px);
+}
+
+.pit.is-selected,
+.pit.is-last,
+.pit.is-forfeit {
+  box-shadow:
+    inset 0 10px 16px rgb(0 0 0 / 0.48),
+    0 0 0 3px #e7b15a;
+}
+
+.pit.is-landed {
+  animation: pit-land 180ms ease;
+}
+
+.pit:disabled {
+  cursor: default;
+}
+
+.seed {
+  position: absolute;
+  width: 22%;
+  height: 22%;
+  border-radius: 999px;
+  background: #f4e7cb;
+  box-shadow:
+    inset 0 -2px 0 #d7be90,
+    0 1px 1px rgb(0 0 0 / 0.35);
+}
+
+.sowing-hand,
+.capture-flight {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.sowing-hand {
+  transition: transform var(--hand-ms, 280ms) ease-in-out;
+}
+
+.capture-flight {
+  animation: capture-flight linear forwards;
+}
+
+.hand-cluster {
+  position: absolute;
+  width: 54px;
+  height: 40px;
+  transform: translate(-50%, -78%);
+}
+
+.hand-count {
+  position: absolute;
+  left: 50%;
+  top: 108%;
+  transform: translateX(-50%);
+  min-width: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #f4e7cb;
+  color: #1c1612;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+@keyframes pit-land {
+  40% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes capture-flight {
+  from {
+    transform: translate(var(--flight-x), var(--flight-y));
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--flight-x), var(--flight-dest));
+    opacity: 0.2;
+  }
+}
+
+.pit-count {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  transform: translate(-50%, -50%);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #f6efe4;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.65);
+  pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  .board-slab {
+    padding: 28px 24px;
+  }
+
+  .board-row {
+    gap: 12px;
+  }
+
+  .pit-count {
+    font-size: 0.95rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pit.is-legal:hover,
+  .pit.is-landed,
+  .sowing-hand,
+  .capture-flight {
+    animation: none;
+    transition: none;
+  }
 }

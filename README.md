@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PlayOware
 
-## Getting Started
+PlayOware is a way to play Oware on this device: against another person sitting with you, or against the computer. The board is a 3D wooden slab. When a game ends, you can step back through the moves.
 
-First, run the development server:
+The rules live in the engine. The screen only shows what the engine already decided.
+
+## How to play
+
+Open the site and choose a game.
+
+- **Same device.** Play a Friend asks for two names. You pass the device. The board turns toward the person whose turn it is.
+- **Against the computer.** Play AI offers beginner, easy, medium, and hard. The computer moves on its own turn.
+- **A quick game.** Play Oware on the home page starts a same-device game against Guest, using your name if the site already knows one.
+- **Resume.** An unfinished game stays in this browser. Continue game on the home page returns to it. It is not stored for another device.
+
+A finished game can be reviewed from its result screen. If the database is running, it also appears under History.
+
+## Rules in short
+
+The full rules are in [docs/OWARE_RULES.md](docs/OWARE_RULES.md).
+
+- Twelve pits, two rows of six. Four seeds in each pit at the start.
+- Lift a pit on your side and sow one seed at a time, anti-clockwise.
+- If the last seed lands in a house that already had seeds, pick that house up and keep sowing.
+- The hand stops when the last seed lands in an empty house.
+- A house that reaches exactly four is captured. The first player to capture 25 seeds wins.
+- If your opponent’s row is empty, you must feed them when you can.
+
+## Stack
+
+- [Next.js](https://nextjs.org) App Router, React, and TypeScript
+- Tailwind CSS
+- Three.js, through React Three Fiber, for the board
+- The rules engine in `src/engine/oware`
+- Prisma and PostgreSQL for finished games and the anonymous profile
+
+An in-progress game is kept in `sessionStorage`. The database is only asked for finished games. There is no password. The first request that needs a profile creates one and stores its id in an httpOnly cookie.
+
+## Setup
+
+You need Node.js and Docker.
 
 ```bash
+npm install
+cp .env.example .env
+docker compose up -d
+npx prisma migrate dev
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Postgres is published on port **5434**. The app is at [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`npx prisma migrate dev` applies the schema in `prisma/migrations`. If Postgres is not running, you can still play. History and profile will say the database is unreachable, and finished games stay reviewable on this device from the result screen.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Start the development server |
+| `npm test` | Run the Vitest suite |
+| `npm run lint` | Run ESLint |
+| `npm run build` | Production build |
 
-To learn more about Next.js, take a look at the following resources:
+## Where things live
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Path | Role |
+| --- | --- |
+| `src/engine/oware` | Rules: sowing, capture, feeding, and the end of the game |
+| `src/game` | The 3D board and how a move is drawn |
+| `src/components/game` | The play screen and the review screen |
+| `src/app/page.tsx` | Landing page |
+| `src/app/learn/page.tsx` | The rules, written for a player |
+| `docs/ARCHITECTURE.md` | How a move travels from the screen to the engine |
+| `docs/OWARE_RULES.md` | The rules the engine is meant to follow |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## What this version does not include
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Matchmaking, accounts with passwords, puzzles, and watching other people’s games are not part of this version. Play a Friend means two people on one device.
