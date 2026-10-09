@@ -2,18 +2,32 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { housesCaptured, replayGame, type GameState } from "@/engine/oware";
+import { housesCaptured, replayGame, type GameState, type Player } from "@/engine/oware";
 import type { LocalGameSession } from "@/lib/game/session";
+
+function endingLabel(reason: GameState["endReason"]) {
+  if (reason === "majority") return "First to 25 seeds.";
+  if (reason === "starvation") return "No legal move remained.";
+  if (reason === "repetition") return "The same position came around again.";
+  if (reason === "resignation") return "One player left the table.";
+  if (reason === "agreement") return "Both players agreed to a draw.";
+  if (reason === "timeout") return "The clock ran out.";
+  return null;
+}
 
 export function ResultDialog({
   session,
+  names,
+  you,
   state,
   saveState,
   onAgain,
   onReview,
   onRetrySave,
 }: {
-  session: LocalGameSession;
+  session?: LocalGameSession;
+  names?: { player1: string; player2: string };
+  you?: Player | null;
   state: GameState;
   saveState: "idle" | "saving" | "saved" | "error";
   onAgain: () => void;
@@ -23,10 +37,13 @@ export function ResultDialog({
   const router = useRouter();
   const score = state.capturedSeeds;
   const houses = housesCaptured(replayGame(state.moveHistory).applied);
+  const player1Name = names?.player1 ?? session?.player1Name ?? "Player";
+  const player2Name = names?.player2 ?? session?.player2Name ?? "Player";
   let title = "Draw";
   if (state.status === "won" && state.winner) {
-    if (session.mode === "ai") title = state.winner === "player1" ? "You won" : "You lost";
-    else title = `${state.winner === "player1" ? session.player1Name : session.player2Name} won`;
+    if (you) title = state.winner === you ? "You won" : "You lost";
+    else if (session?.mode === "ai") title = state.winner === "player1" ? "You won" : "You lost";
+    else title = `${state.winner === "player1" ? player1Name : player2Name} won`;
   }
 
   return (
@@ -43,8 +60,9 @@ export function ResultDialog({
           {houses.player2 === 1 ? "house" : "houses"}
         </p>
         <p className="mt-1 text-sm text-ink-soft">
-          {session.player1Name} — {session.player2Name}
+          {player1Name} — {player2Name}
         </p>
+        {endingLabel(state.endReason) ? <p className="mt-3 text-sm text-ink-soft">{endingLabel(state.endReason)}</p> : null}
         {saveState === "error" ? (
           <p className="mt-4 text-sm text-bad">
             Couldn’t save this game.{" "}

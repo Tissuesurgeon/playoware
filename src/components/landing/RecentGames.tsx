@@ -19,7 +19,7 @@ export async function RecentGames() {
   if (!games || games.length === 0) return null;
 
   return (
-    <section className="mx-auto w-full max-w-6xl px-4 pb-12" aria-labelledby="recent-title">
+    <section className="mx-auto w-full max-w-6xl px-4 py-16" aria-labelledby="recent-title">
       <div className="flex items-end justify-between gap-4">
         <h2 id="recent-title" className="font-serif text-3xl">
           Recent games

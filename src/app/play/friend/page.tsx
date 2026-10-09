@@ -1,51 +1,47 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { rememberInvite } from "@/components/online/OnlineMatch";
 import { Button } from "@/components/ui/Button";
-import { loadName, useStart } from "@/lib/start-game";
 
 export default function PlayFriendPage() {
-  const { pending, go } = useStart();
-  const [you, setYou] = useState("Player");
-  const [guest, setGuest] = useState("Guest");
-
-  useEffect(() => {
-    void loadName().then(setYou);
-  }, []);
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   return (
     <main className="mx-auto max-w-xl px-4 py-14">
-      <h1 className="font-serif text-5xl">Play friend</h1>
-      <p className="mt-2 text-ink-soft">Both of you play on this device. The board turns toward the player to move.</p>
-      <form
-        className="mt-8 flex flex-col gap-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void go({ mode: "local", player1Name: you, player2Name: guest });
+      <h1 className="font-serif text-5xl">Play a friend</h1>
+      <p className="mt-3 max-w-md text-ink-soft">
+        Create a private table and send the link. Your friend opens it on their own device.
+      </p>
+      {error ? <p className="mt-4 text-sm text-bad">{error}</p> : null}
+      <Button
+        className="mt-8"
+        disabled={pending}
+        onClick={() => {
+          setPending(true);
+          setError(null);
+          void fetch("/api/matches/friend", { method: "POST" })
+            .then(async (response) => {
+              const body = (await response.json()) as { matchId?: string; path?: string | null; error?: string };
+              if (!response.ok || !body.matchId) {
+                setError(body.error ?? "Couldn’t create a table.");
+                setPending(false);
+                return;
+              }
+              if (body.path) rememberInvite(body.matchId, body.path);
+              router.push(`/match/${body.matchId}`);
+            })
+            .catch(() => {
+              setError("Couldn’t create a table.");
+              setPending(false);
+            });
         }}
       >
-        <label className="text-sm font-semibold">
-          Your name
-          <input
-            value={you}
-            onChange={(event) => setYou(event.target.value)}
-            maxLength={24}
-            className="mt-1 h-11 w-full rounded-2xl border border-line bg-paper px-3 font-normal"
-          />
-        </label>
-        <label className="text-sm font-semibold">
-          Friend’s name
-          <input
-            value={guest}
-            onChange={(event) => setGuest(event.target.value)}
-            maxLength={24}
-            className="mt-1 h-11 w-full rounded-2xl border border-line bg-paper px-3 font-normal"
-          />
-        </label>
-        <Button type="submit" disabled={pending}>
-          Start game
-        </Button>
-      </form>
+        Create invitation
+      </Button>
     </main>
   );
 }

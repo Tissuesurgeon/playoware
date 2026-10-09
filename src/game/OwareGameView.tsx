@@ -40,7 +40,9 @@ export function OwareGameView({
   preview = false,
   ...scene
 }: SceneBoardProps) {
-  const frame = preview ? "relative h-[min(52vh,440px)] min-h-[280px]" : "relative h-[min(68vh,620px)] min-h-[320px]";
+  const frame = preview
+    ? "relative h-[250px] sm:h-[280px] md:h-[min(44vh,360px)] md:min-h-[260px]"
+    : "relative h-[min(68vh,620px)] min-h-[320px]";
   return (
     <div>
       <div className={`${frame} w-full overflow-hidden rounded-[28px] bg-cream`}>

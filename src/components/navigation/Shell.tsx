@@ -17,9 +17,14 @@ export function Shell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
-  const bare = pathname.startsWith("/game") || pathname.startsWith("/review") || pathname.startsWith("/dev");
+  const bare = pathname.startsWith("/game") || pathname.startsWith("/match") || pathname.startsWith("/review") || pathname.startsWith("/dev");
 
   function guard(href: string) {
+    if (pathname.startsWith("/match/")) {
+      setPending(href);
+      setOpen(false);
+      return false;
+    }
     if (!pathname.startsWith("/game/") || !readActiveGameId()) {
       setOpen(false);
       return true;
@@ -109,7 +114,9 @@ export function Shell({ children }: { children: ReactNode }) {
               Leave this game?
             </h2>
             <p className="mt-2 text-sm leading-6 text-ink-soft">
-              The game stays on this device until it ends. You can resume it from the home page.
+              {pathname.startsWith("/match/")
+                ? "The match stays open for your opponent. You can rejoin from home."
+                : "The game stays on this device until it ends. You can resume it from the home page."}
             </p>
             <div className="mt-6 flex gap-3">
               <Button variant="secondary" className="flex-1" onClick={() => setPending(null)}>

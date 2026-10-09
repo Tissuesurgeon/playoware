@@ -8,12 +8,16 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  displayName String   @default("Player")
-  createdAt   DateTime @default(now())
+  id          String       @id @default(cuid())
+  displayName String       @default("Player")
+  createdAt   DateTime     @default(now())
   profile     Profile?
-  gamesAsP1   Game[]   @relation("PlayerOne")
-  gamesAsP2   Game[]   @relation("PlayerTwo")
+  sessions    Session[]
+  gamesAsP1   Game[]       @relation("PlayerOne")
+  gamesAsP2   Game[]       @relation("PlayerTwo")
+  matchesAsP1 Match[]      @relation("MatchPlayerOne")
+  matchesAsP2 Match[]      @relation("MatchPlayerTwo")
+  queueEntry  QueueEntry?
 }
 
 model Profile {
@@ -59,4 +63,74 @@ model GameMove {
 
   @@unique([gameId, moveNumber])
   @@index([gameId])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Match {
+  id                    String      @id @default(cuid())
+  kind                  String
+  status                String
+  version               Int         @default(0)
+  player1UserId         String?
+  player1               User?       @relation("MatchPlayerOne", fields: [player1UserId], references: [id])
+  player2UserId         String?
+  player2               User?       @relation("MatchPlayerTwo", fields: [player2UserId], references: [id])
+  player1Name           String
+  player2Name           String      @default("")
+  scoreP1               Int         @default(0)
+  scoreP2               Int         @default(0)
+  winner                String?
+  endReason             String?
+  drawOffer             String?
+  inviteHash            String?     @unique
+  inviteExpiresAt       DateTime?
+  player1DisconnectedAt DateTime?
+  player2DisconnectedAt DateTime?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  completedAt           DateTime?
+  moves                 MatchMove[]
+
+  @@index([player1UserId])
+  @@index([player2UserId])
+  @@index([status])
+}
+
+model MatchMove {
+  id           String   @id @default(cuid())
+  matchId      String
+  match        Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sequence     Int
+  player       String
+  pit          Int
+  kind         String
+  clientMoveId String
+  createdAt    DateTime @default(now())
+
+  @@unique([matchId, sequence])
+  @@unique([matchId, clientMoveId])
+  @@index([matchId])
+}
+
+model QueueEntry {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    String
+  matchId   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
 }

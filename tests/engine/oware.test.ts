@@ -208,6 +208,18 @@ describe("game end and scoring", () => {
     expect(game.getState().board[6]).toBe(1);
   });
 
+  it("does not end when each player has captured two houses", () => {
+    const game = OwareGame.fromHistory([{ pit: 1 }, { pit: 11 }, { pit: 4 }]);
+    expect(game.isGameOver()).toBe(false);
+    const capturedSeeds = game.getState().capturedSeeds;
+    expect(capturedSeeds.player1).toBeLessThan(25);
+    expect(capturedSeeds.player2).toBeLessThan(25);
+    expect(housesCaptured(replayGame([{ pit: 1 }, { pit: 11 }, { pit: 4 }]).applied)).toEqual({
+      player1: 2,
+      player2: 2,
+    });
+  });
+
   it("continues when a player has exactly 24", () => {
     const game = gameFrom([1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0], "player1", captured(24, 22));
     game.makeMove(0);

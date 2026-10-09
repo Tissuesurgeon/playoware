@@ -36,7 +36,7 @@ const ringHot = new MeshStandardMaterial({ color: "#f3d7a1", roughness: 0.35, em
 const ringForfeit = new MeshStandardMaterial({ color: "#8d3b32", roughness: 0.6, emissive: "#5a241e", emissiveIntensity: 0.2 });
 const mouthMaterial = new MeshStandardMaterial({ transparent: true, opacity: 0.02, depthWrite: false, color: "#000000" });
 
-function FrameCamera() {
+function FrameCamera({ preview = false }: { preview?: boolean }) {
   const width = useThree((state) => state.size.width);
   const invalidate = useThree((state) => state.invalidate);
   const phone = width < 520;
@@ -46,7 +46,7 @@ function FrameCamera() {
   useLayoutEffect(() => {
     camera.current?.lookAt(0, -0.1, 0);
     invalidate();
-  }, [phone, narrow, invalidate]);
+  }, [phone, narrow, preview, invalidate]);
 
   useFrame(() => {
     camera.current?.lookAt(0, -0.1, 0);
@@ -58,8 +58,10 @@ function FrameCamera() {
       makeDefault
       near={0.1}
       far={50}
-      fov={phone ? 48 : narrow ? 36 : 32}
-      position={phone ? [0, 11.5, 8.4] : narrow ? [0, 8.4, 7.2] : [0, 5.6, 6.6]}
+      fov={preview && phone ? 36 : phone ? 48 : narrow ? 36 : 32}
+      position={
+        preview && phone ? [0, 8.2, 6.2] : phone ? [0, 11.5, 8.4] : narrow ? [0, 8.4, 7.2] : [0, 5.6, 6.6]
+      }
     />
   );
 }
@@ -449,7 +451,7 @@ export function OwareScene(props: SceneBoardProps) {
     >
       <color attach="background" args={["#f3eee6"]} />
       <PreviewSettle active={Boolean(props.preview)} />
-      <FrameCamera />
+      <FrameCamera preview={props.preview} />
       <ambientLight intensity={0.7} />
       <directionalLight
         position={[3.5, 9, 5]}

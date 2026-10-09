@@ -1,20 +1,24 @@
 import { cookies } from "next/headers";
 import { getPrisma } from "@/lib/db/client";
+import { LEGACY_COOKIE, SESSION_COOKIE, SESSION_MAX_AGE } from "@/server/config";
+import { createSession, userFromToken } from "@/server/session";
 
-const COOKIE = "playoware_uid";
-
-export async function readUserId() {
-  const jar = await cookies();
-  return jar.get(COOKIE)?.value ?? null;
+function cookieOptions(maxAge = SESSION_MAX_AGE) {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge,
+    secure: process.env.NODE_ENV === "production",
+  };
 }
 
 export async function readUser() {
   const prisma = getPrisma();
   if (!prisma) return { user: null, unavailable: true as const };
-  const id = await readUserId();
-  if (!id) return { user: null, unavailable: false as const };
   try {
-    const user = await prisma.user.findUnique({ where: { id } });
+    const jar = await cookies();
+    const user = await userFromToken(prisma, jar.get(SESSION_COOKIE)?.value);
     return { user, unavailable: false as const };
   } catch {
     return { user: null, unavailable: true as const };
@@ -25,20 +29,24 @@ export async function getOrCreateUser() {
   const prisma = getPrisma();
   if (!prisma) return null;
   const jar = await cookies();
-  const existing = jar.get(COOKIE)?.value;
-  if (existing) {
-    const user = await prisma.user.findUnique({ where: { id: existing } });
-    if (user) return user;
+  const current = await userFromToken(prisma, jar.get(SESSION_COOKIE)?.value);
+  if (current) return current;
+
+  const legacyId = jar.get(LEGACY_COOKIE)?.value;
+  if (legacyId) {
+    const legacy = await prisma.user.findUnique({ where: { id: legacyId } });
+    if (legacy) {
+      const session = await createSession(prisma, legacy.id);
+      jar.set(SESSION_COOKIE, session.token, cookieOptions());
+      jar.set(LEGACY_COOKIE, "", cookieOptions(0));
+      return legacy;
+    }
   }
+
   const user = await prisma.user.create({
     data: { displayName: "Player", profile: { create: {} } },
   });
-  jar.set(COOKIE, user.id, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365,
-    secure: process.env.NODE_ENV === "production",
-  });
+  const session = await createSession(prisma, user.id);
+  jar.set(SESSION_COOKIE, session.token, cookieOptions());
   return user;
 }

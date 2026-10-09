@@ -20,7 +20,7 @@ export async function loadName() {
 }
 
 export function startGame(options: {
-  mode: "local" | "ai";
+  mode: "ai";
   player1Name: string;
   player2Name: string;
   aiDifficulty?: Difficulty;
