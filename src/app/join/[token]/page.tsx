@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { PlayerNameField } from "@/components/play/PlayerNameField";
+import { NamePrompt } from "@/components/play/NamePrompt";
 import { Button } from "@/components/ui/Button";
 import { loadName, saveDisplayName } from "@/lib/start-game";
 
@@ -13,6 +13,7 @@ export default function JoinPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [askName, setAskName] = useState(false);
 
   useEffect(() => {
     void loadName().then(setName);
@@ -21,11 +22,28 @@ export default function JoinPage() {
   return (
     <main className="mx-auto max-w-xl px-4 py-14">
       <h1 className="font-serif text-5xl">Join the table</h1>
-      <p className="mt-3 text-ink-soft">Enter your name, then sit down. The invitation works once.</p>
-      <form
-        className="mt-8 flex flex-col gap-5"
-        onSubmit={(event) => {
-          event.preventDefault();
+      <p className="mt-3 text-ink-soft">Sit down when you’re ready. The invitation works once.</p>
+      <div className="mt-8 flex flex-col items-start gap-5">
+        {error && !askName ? <p className="text-sm text-bad">{error}</p> : null}
+        <Button type="button" onClick={() => setAskName(true)}>
+          Sit down
+        </Button>
+        <Link href="/play" className="text-sm font-semibold text-ink-soft">
+          Back to play
+        </Link>
+      </div>
+      <NamePrompt
+        open={askName}
+        name={name}
+        onChange={setName}
+        pending={pending}
+        error={error}
+        confirmLabel="Sit down"
+        onClose={() => {
+          if (pending) return;
+          setAskName(false);
+        }}
+        onConfirm={() => {
           const token = params.token;
           if (!token) return;
           setPending(true);
@@ -56,16 +74,7 @@ export default function JoinPage() {
               });
           });
         }}
-      >
-        <PlayerNameField name={name} onChange={setName} />
-        {error ? <p className="text-sm text-bad">{error}</p> : null}
-        <Button type="submit" disabled={pending || !name.trim()}>
-          Sit down
-        </Button>
-        <Link href="/play" className="text-sm font-semibold text-ink-soft">
-          Back to play
-        </Link>
-      </form>
+      />
     </main>
   );
 }

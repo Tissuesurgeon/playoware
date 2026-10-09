@@ -55,6 +55,7 @@ export function GameScreen({ id }: { id: string }) {
   const [thinking, setThinking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmResign, setConfirmResign] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   useEffect(() => {
@@ -324,9 +325,9 @@ export function GameScreen({ id }: { id: string }) {
           href="/play"
           className="inline-flex min-h-11 items-center text-sm font-semibold text-ink-soft"
           onClick={(event) => {
-            if (state.status === "in_progress" && !window.confirm("Leave this game? You can resume it from home.")) {
-              event.preventDefault();
-            }
+            if (state.status !== "in_progress") return;
+            event.preventDefault();
+            setConfirmLeave(true);
           }}
         >
           ← Back
@@ -469,6 +470,22 @@ export function GameScreen({ id }: { id: string }) {
           <p className="mt-3 text-xs text-ink-soft">Keys 1–6 play the houses you still own, from the left.</p>
         </div>
       </section>
+      {confirmLeave && !over ? (
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="leave-title">
+          <div className="w-full max-w-sm rounded-3xl bg-paper p-6 shadow-xl">
+            <h2 id="leave-title" className="font-serif text-2xl">Leave this game?</h2>
+            <p className="mt-2 text-sm leading-6 text-ink-soft">The game stays on this device until it ends. You can resume it from the home page.</p>
+            <div className="mt-6 flex gap-3">
+              <Button variant="secondary" className="flex-1" onClick={() => setConfirmLeave(false)}>
+                Stay
+              </Button>
+              <Button className="flex-1" onClick={() => router.push("/play")}>
+                Leave
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {confirmResign && !over ? (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="resign-title">
           <div className="w-full max-w-sm rounded-3xl bg-paper p-6">

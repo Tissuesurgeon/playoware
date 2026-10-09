@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { rememberInvite } from "@/components/online/OnlineMatch";
-import { PlayerNameField } from "@/components/play/PlayerNameField";
+import { NamePrompt } from "@/components/play/NamePrompt";
 import { Button } from "@/components/ui/Button";
 import { loadName, saveDisplayName } from "@/lib/start-game";
 
@@ -12,6 +12,7 @@ export default function PlayFriendPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [askName, setAskName] = useState(false);
 
   useEffect(() => {
     void loadName().then(setName);
@@ -23,10 +24,24 @@ export default function PlayFriendPage() {
       <p className="mt-3 max-w-md text-ink-soft">
         Create a private table and send the link. Your friend opens it on their own device.
       </p>
-      <form
-        className="mt-8 flex flex-col gap-5"
-        onSubmit={(event) => {
-          event.preventDefault();
+      <div className="mt-8">
+        {error && !askName ? <p className="mb-4 text-sm text-bad">{error}</p> : null}
+        <Button type="button" onClick={() => setAskName(true)}>
+          Create invitation
+        </Button>
+      </div>
+      <NamePrompt
+        open={askName}
+        name={name}
+        onChange={setName}
+        pending={pending}
+        error={error}
+        confirmLabel="Create invitation"
+        onClose={() => {
+          if (pending) return;
+          setAskName(false);
+        }}
+        onConfirm={() => {
           setPending(true);
           setError(null);
           void saveDisplayName(name).then((saved) => {
@@ -52,13 +67,7 @@ export default function PlayFriendPage() {
               });
           });
         }}
-      >
-        <PlayerNameField name={name} onChange={setName} />
-        {error ? <p className="text-sm text-bad">{error}</p> : null}
-        <Button type="submit" disabled={pending || !name.trim()}>
-          Create invitation
-        </Button>
-      </form>
+      />
     </main>
   );
 }
