@@ -6,7 +6,11 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 export function getPrisma() {
   applyDatabaseUrl();
   if (!process.env.DATABASE_URL) return null;
-  if (!globalForPrisma.prisma) globalForPrisma.prisma = new PrismaClient();
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = new PrismaClient({
+      transactionOptions: { maxWait: 10_000, timeout: 20_000 },
+    });
+  }
   return globalForPrisma.prisma;
 }
 

@@ -29,7 +29,9 @@ import { readCookie, userFromToken } from "@/server/session";
 loadEnv();
 applyDatabaseUrl();
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  transactionOptions: { maxWait: 10_000, timeout: 20_000 },
+});
 const port = Number(process.env.WS_PORT ?? 3001);
 const sockets = new Set<Client>();
 
@@ -217,7 +219,10 @@ export async function attachRealtime(server: Server) {
   });
 
   setInterval(() => {
-    void sweepGrace(prisma);
+    void sweepGrace(prisma).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "unknown error";
+      console.error("sweep failed", message);
+    });
   }, 5_000);
 }
 
