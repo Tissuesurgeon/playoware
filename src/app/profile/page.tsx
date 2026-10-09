@@ -32,8 +32,8 @@ export default async function ProfilePage() {
   const name = user?.displayName ?? "Player";
 
   return (
-    <main className="mx-auto max-w-xl px-4 py-14">
-      <h1 className="font-serif text-5xl">{name}</h1>
+    <main className="mx-auto max-w-xl px-4 pt-8 pb-16">
+      <h1 className="font-serif text-5xl tracking-tight text-balance">{name}</h1>
       <p className="mt-2 text-sm font-semibold tracking-wide text-ink-soft uppercase">Oware rating</p>
       <p className="font-serif text-3xl">Unrated</p>
       {offline ? (
@@ -42,20 +42,25 @@ export default async function ProfilePage() {
         </p>
       ) : null}
       <dl className="mt-8 grid grid-cols-2 gap-3">
-        {[
-          ["Games", total],
-          ["Wins", wins],
-          ["Losses", losses],
-          ["Draws", draws],
-          ["Win rate", winRate],
-        ].map(([label, value]) => (
+        {(
+          [
+            ["Games", total],
+            ["Wins", wins],
+            ["Losses", losses],
+            ["Draws", draws],
+          ] as const
+        ).map(([label, value]) => (
           <div key={label} className="rounded-3xl border border-line bg-paper p-4">
             <dt className="text-xs font-semibold tracking-wide text-ink-soft uppercase">{label}</dt>
             <dd className="mt-1 font-serif text-3xl">{value}</dd>
           </div>
         ))}
+        <div className="col-span-2 flex items-baseline justify-between rounded-3xl border border-line bg-paper p-4">
+          <dt className="text-xs font-semibold tracking-wide text-ink-soft uppercase">Win rate</dt>
+          <dd className="font-serif text-3xl">{winRate}</dd>
+        </div>
       </dl>
-      <Link href="/history" className="mt-8 inline-flex h-11 items-center rounded-full bg-clay px-5 text-sm font-semibold text-paper">
+      <Link href="/history" className="mt-8 inline-flex h-11 items-center rounded-full bg-clay px-5 text-sm font-semibold text-paper hover:bg-clay-dark">
         Game history
       </Link>
     </main>

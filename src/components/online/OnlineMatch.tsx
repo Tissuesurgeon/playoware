@@ -32,6 +32,7 @@ export function OnlineMatch({ id }: { id: string }) {
     () => null,
   );
   const [copied, setCopied] = useState(false);
+  const inviteRef = useRef<HTMLParagraphElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [socketState, setSocketState] = useState<"connecting" | "open" | "closed">("connecting");
   const [seenOpponent, setSeenOpponent] = useState(false);
@@ -273,65 +274,94 @@ export function OnlineMatch({ id }: { id: string }) {
         <Link href="/play" className="inline-flex min-h-11 items-center text-sm font-semibold text-ink-soft">
           ← Back
         </Link>
-        <p className="font-serif text-xl">{waiting ? "Waiting" : "Oware"}</p>
-        <button
-          type="button"
-          className="inline-flex min-h-11 items-center text-sm font-semibold text-ink-soft"
-          onClick={() => {
-            const order = ["normal", "fast", "instant"] as const;
-            const next = order[(order.indexOf(settings.animation) + 1) % order.length] ?? "normal";
-            update({ ...settings, animation: next });
-          }}
-        >
-          {speedLabel}
-        </button>
+        {waiting ? null : (
+          <>
+            <p className="font-serif text-xl">Oware</p>
+            <button
+              type="button"
+              className="inline-flex min-h-11 items-center text-sm font-semibold text-ink-soft"
+              onClick={() => {
+                const order = ["normal", "fast", "instant"] as const;
+                const next = order[(order.indexOf(settings.animation) + 1) % order.length] ?? "normal";
+                update({ ...settings, animation: next });
+              }}
+            >
+              {speedLabel}
+            </button>
+          </>
+        )}
       </div>
       {socketState !== "open" ? <p className="text-center text-sm font-semibold text-ink-soft">Reconnecting…</p> : null}
       {seenOpponent && !opponentConnected && snapshot.status === "active" ? (
         <p className="text-center text-sm font-semibold text-ink-soft">Opponent disconnected. The game is held open.</p>
       ) : null}
       {waiting ? (
-        <section className="rounded-3xl border border-line bg-paper p-6">
-          <h1 className="font-serif text-3xl">Waiting for a friend</h1>
-          <p className="mt-2 text-ink-soft">Send this link. It works once, for one player.</p>
+        <section className="rounded-[28px] border border-line bg-paper p-5 sm:p-6">
+          <h1 className="font-serif text-4xl tracking-tight text-balance">Waiting for a friend</h1>
+          <p className="mt-2 max-w-[36ch] leading-7 text-ink-soft">Send this link. It works once, for one player.</p>
           {invite ? (
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <code className="rounded-2xl bg-cream px-3 py-2 text-sm break-all">{invite}</code>
-              <Button
+            <>
+              <p ref={inviteRef} className="mt-5 overflow-x-auto rounded-2xl bg-cream px-4 py-3 text-sm whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{invite}</p>
+              <button
                 type="button"
-                variant="secondary"
+                className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-full bg-forest text-sm font-semibold text-paper hover:bg-forest-dark"
                 onClick={() => {
-                  void navigator.clipboard.writeText(invite).then(() => {
-                    setCopied(true);
-                    window.setTimeout(() => setCopied(false), 1500);
-                  });
+                  void navigator.clipboard.writeText(invite).then(
+                    () => {
+                      setCopied(true);
+                      setError(null);
+                      window.setTimeout(() => setCopied(false), 1500);
+                    },
+                    () => {
+                      const node = inviteRef.current;
+                      if (node) {
+                        const range = document.createRange();
+                        range.selectNodeContents(node);
+                        const selection = window.getSelection();
+                        selection?.removeAllRanges();
+                        selection?.addRange(range);
+                      }
+                      setCopied(false);
+                      setError("The link is selected. Copy it from there.");
+                    },
+                  );
                 }}
               >
                 {copied ? "Copied" : "Copy link"}
-              </Button>
-            </div>
+              </button>
+            </>
           ) : (
-            <p className="mt-4 text-sm text-ink-soft">The invitation link is on the device that created this table.</p>
+            <p className="mt-5 text-sm leading-6 text-ink-soft">The invitation link is on the device that created this table.</p>
           )}
-          <button
+          <Button
             type="button"
-            className="mt-4 text-sm font-semibold text-ink-soft"
+            variant="secondary"
+            className="mt-3 w-full"
             onClick={() => {
               void fetch(`/api/matches/${id}/leave`, { method: "POST" }).then(() => router.push("/play"));
             }}
           >
             Cancel invitation
-          </button>
+          </Button>
         </section>
       ) : null}
-      <PlayerBar
-        name={names[opponentSide]}
-        player={opponentSide}
-        houses={houses[opponentSide]}
-        seeds={captured[opponentSide]}
-        active={!playback.playing && snapshot.yourTurn === false && !over && !waiting}
-        status={waiting ? "Not here yet" : undefined}
-      />
+      {waiting ? (
+        <div className="flex items-center gap-3 px-2 py-1.5">
+          <div className="h-9 w-9 shrink-0 rounded-full border border-dashed border-ink-soft/50 bg-paper sm:h-11 sm:w-11" aria-hidden />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold tracking-wide text-ink-soft uppercase">Empty seat</p>
+            <p className="truncate font-serif text-lg leading-tight sm:text-xl">Not here yet</p>
+          </div>
+        </div>
+      ) : (
+        <PlayerBar
+          name={names[opponentSide]}
+          player={opponentSide}
+          houses={houses[opponentSide]}
+          seeds={captured[opponentSide]}
+          active={!playback.playing && snapshot.yourTurn === false && !over}
+        />
+      )}
       <OwareGameView
         board={board.length === 12 ? board : initialBoard()}
         territory={territory}
@@ -363,8 +393,8 @@ export function OnlineMatch({ id }: { id: string }) {
         player={you}
         houses={houses[you]}
         seeds={captured[you]}
-        active={snapshot.yourTurn && !playback.playing && !over}
-        status={snapshot.yourTurn && !over ? "Your turn" : undefined}
+        active={!waiting && snapshot.yourTurn && !playback.playing && !over}
+        status={waiting ? "You're seated" : snapshot.yourTurn && !over ? "Your turn" : undefined}
       />
       {error ? <p className="text-center text-sm text-bad">{error}</p> : null}
       {!waiting && !over ? (
@@ -377,7 +407,7 @@ export function OnlineMatch({ id }: { id: string }) {
           </Button>
         </div>
       ) : null}
-      <p className="text-center text-sm text-ink-soft tabular-nums">Round {snapshot.round ?? 1}</p>
+      {waiting ? null : <p className="text-center text-sm text-ink-soft tabular-nums">Round {snapshot.round ?? 1}</p>}
       {snapshot.status === "completed" ? (
         <ResultDialog
           names={names}

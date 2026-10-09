@@ -31,6 +31,12 @@ body {
   font-family: var(--font-sans);
 }
 
+input,
+select,
+textarea {
+  accent-color: var(--color-forest);
+}
+
 :focus-visible {
   outline: 2px solid #e7b15a;
   outline-offset: 3px;

@@ -30,6 +30,22 @@ import {
   writeSnapshot,
 } from "@/lib/storage";
 
+function SoundIcon({ on }: { on: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 9.5v5h3.2L12 19V5L7.2 9.5H4Z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+      {on ? (
+        <>
+          <path d="M15.2 9.2a3.4 3.4 0 0 1 0 5.6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+          <path d="M17.6 7a6.2 6.2 0 0 1 0 10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+        </>
+      ) : (
+        <path d="M16 9.5 20.5 14.5M20.5 9.5 16 14.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      )}
+    </svg>
+  );
+}
+
 function loadSession(raw: string) {
   if (raw === "pending" || raw === "missing") return null;
   try {
@@ -347,11 +363,12 @@ export function GameScreen({ id }: { id: string }) {
           </button>
           <button
             type="button"
-            className="inline-flex min-h-11 items-center text-sm font-semibold text-ink-soft"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center text-ink-soft"
             aria-pressed={settings.sound}
+            aria-label={settings.sound ? "Sound on" : "Sound off"}
             onClick={() => update({ ...settings, sound: !settings.sound })}
           >
-            {settings.sound ? "Sound on" : "Sound off"}
+            <SoundIcon on={settings.sound} />
           </button>
         </div>
       </div>

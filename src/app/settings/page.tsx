@@ -27,10 +27,11 @@ export default function SettingsPage() {
   }, []);
 
   return (
-    <main className="mx-auto max-w-xl px-4 py-14">
-      <h1 className="font-serif text-5xl">Settings</h1>
+    <main className="mx-auto max-w-xl px-4 pt-8 pb-16">
+      <h1 className="font-serif text-5xl tracking-tight">Settings</h1>
+
       <form
-        className="mt-8 flex flex-col gap-5"
+        className="mt-8 rounded-[28px] border border-line bg-paper p-5 sm:p-6"
         onSubmit={async (event) => {
           event.preventDefault();
           const displayName = name.trim().slice(0, 24) || "Player";
@@ -48,26 +49,57 @@ export default function SettingsPage() {
           }
         }}
       >
-        <label className="text-sm font-semibold">
-          Display name
+        <label htmlFor="display-name" className="block text-sm font-semibold">
+          Your name
+        </label>
+        <p className="mt-1 text-sm text-ink-soft">This is the name at the table.</p>
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row">
           <input
+            id="display-name"
             value={name}
             onChange={(event) => setName(event.target.value)}
             maxLength={24}
-            className="mt-1 h-11 w-full rounded-2xl border border-line bg-paper px-3 font-normal"
+            className="h-11 w-full rounded-full border border-line bg-cream px-4"
           />
+          <Button type="submit" className="shrink-0">
+            Save
+          </Button>
+        </div>
+        <p aria-live="polite" className="mt-3 min-h-5 text-sm text-ink-soft">
+          {message}
+        </p>
+      </form>
+
+      <section className="mt-4 rounded-[28px] border border-line bg-paper p-5 sm:p-6" aria-labelledby="prefs-title">
+        <h2 id="prefs-title" className="text-xs font-semibold tracking-wide text-ink-soft uppercase">
+          Preferences
+        </h2>
+        <p className="mt-1 text-sm text-ink-soft">Saved on this device as you change them.</p>
+
+        <label className="mt-5 flex cursor-pointer items-center justify-between gap-4">
+          <span>
+            <span className="block text-sm font-semibold">Sound</span>
+            <span className="mt-0.5 block text-sm text-ink-soft">Seed drops and the end-of-game chime.</span>
+          </span>
+          <span className="relative inline-flex shrink-0">
+            <input
+              type="checkbox"
+              checked={settings.sound}
+              onChange={(event) => update({ ...settings, sound: event.target.checked })}
+              className="peer sr-only"
+            />
+            <span
+              className={`h-7 w-12 rounded-full transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#e7b15a] ${settings.sound ? "bg-forest" : "bg-line"}`}
+            />
+            <span
+              className={`absolute top-1 left-1 h-5 w-5 rounded-full bg-paper shadow-sm transition-transform duration-200 motion-reduce:transition-none ${settings.sound ? "translate-x-5" : ""}`}
+            />
+          </span>
         </label>
-        <label className="flex items-center justify-between gap-4 text-sm font-semibold">
-          Sound
-          <input
-            type="checkbox"
-            checked={settings.sound}
-            onChange={(event) => update({ ...settings, sound: event.target.checked })}
-          />
-        </label>
-        <fieldset className="text-sm font-semibold">
-          <legend>Animation speed</legend>
-          <div className="mt-2 flex flex-col gap-2 font-normal">
+
+        <fieldset className="mt-6">
+          <legend className="text-sm font-semibold">Animation speed</legend>
+          <div className="mt-2 grid grid-cols-3 gap-1 rounded-full border border-line bg-cream p-1">
             {(
               [
                 ["normal", "Normal"],
@@ -75,36 +107,37 @@ export default function SettingsPage() {
                 ["instant", "Instant"],
               ] as const
             ).map(([value, label]) => (
-              <label key={value} className="flex items-center gap-2">
+              <label key={value} className="relative">
                 <input
                   type="radio"
                   name="animation"
                   value={value}
                   checked={settings.animation === value}
                   onChange={() => update({ ...settings, animation: value })}
+                  className="peer sr-only"
                 />
-                {label}
+                <span className="flex h-10 cursor-pointer items-center justify-center rounded-full text-sm font-semibold text-ink-soft transition-colors peer-checked:bg-paper peer-checked:text-forest peer-checked:shadow-sm peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#e7b15a]">
+                  {label}
+                </span>
               </label>
             ))}
           </div>
         </fieldset>
-        <label className="text-sm font-semibold">
+
+        <label htmlFor="motion" className="mt-6 block text-sm font-semibold">
           Motion
-          <select
-            value={settings.motion}
-            onChange={(event) =>
-              update({ ...settings, motion: event.target.value as "system" | "reduce" | "full" })
-            }
-            className="mt-1 h-11 w-full rounded-2xl border border-line bg-paper px-3 font-normal"
-          >
-            <option value="system">Match this device</option>
-            <option value="reduce">Reduce motion</option>
-            <option value="full">Play animations</option>
-          </select>
         </label>
-        <Button type="submit">Save name</Button>
-        {message ? <p className="text-sm text-ink-soft">{message}</p> : null}
-      </form>
+        <select
+          id="motion"
+          value={settings.motion}
+          onChange={(event) => update({ ...settings, motion: event.target.value as "system" | "reduce" | "full" })}
+          className="mt-2 h-11 w-full rounded-full border border-line bg-cream px-4"
+        >
+          <option value="system">Match this device</option>
+          <option value="reduce">Reduce motion</option>
+          <option value="full">Play animations</option>
+        </select>
+      </section>
     </main>
   );
 }

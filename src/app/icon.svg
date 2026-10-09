@@ -1,7 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#6b3f28"/>
-  <circle cx="16" cy="16" r="8" fill="#24160f"/>
-  <circle cx="13" cy="14" r="1.6" fill="#f4e7cb"/>
-  <circle cx="19" cy="14" r="1.6" fill="#f4e7cb"/>
-  <circle cx="16" cy="19" r="1.6" fill="#f4e7cb"/>
+  <defs>
+    <clipPath id="playoware-mark">
+      <rect width="32" height="32" rx="8" />
+    </clipPath>
+  </defs>
+  <g clip-path="url(#playoware-mark)">
+    <rect width="16" height="32" fill="#2c6b4a" />
+    <rect x="16" width="16" height="32" fill="#c4622d" />
+    <circle cx="16" cy="16" r="9.2" fill="#f3eee6" />
+    <circle cx="16" cy="16" r="7.3" fill="#24160f" />
+    <circle cx="13.7" cy="13.7" r="1.45" fill="#f4e7cb" />
+    <circle cx="18.3" cy="13.7" r="1.45" fill="#f4e7cb" />
+    <circle cx="13.7" cy="18.3" r="1.45" fill="#f4e7cb" />
+    <circle cx="18.3" cy="18.3" r="1.45" fill="#f4e7cb" />
+  </g>
 </svg>
