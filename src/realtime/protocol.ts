@@ -13,6 +13,8 @@ export interface MatchSnapshot {
   player1Name: string;
   player2Name: string;
   board: number[];
+  territory: Player[];
+  round: number;
   currentPlayer: Player;
   captured: CapturedSeeds;
   pits: number[];

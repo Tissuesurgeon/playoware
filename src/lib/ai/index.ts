@@ -1,8 +1,9 @@
 import {
   OwareGame,
+  initialTerritory,
   opponent,
-  sidePits,
-  sideSeedCount,
+  ownedPits,
+  territorySeedCount,
   type GameState,
   type Move,
   type Player,
@@ -28,26 +29,28 @@ const DEPTH: Record<Difficulty, number> = {
 };
 
 export function evaluate(state: GameState, perspective: Player): number {
+  const territory = state.territory ?? initialTerritory();
+  const mine = territory.filter((owner) => owner === perspective).length;
+  const theirs = territory.length - mine;
   const me = state.capturedSeeds[perspective];
   const them = state.capturedSeeds[opponent(perspective)];
+  const houses = mine - theirs;
   const diff = me - them;
 
   if (state.status === "won") {
-    return state.winner === perspective ? 100_000 + diff : -100_000 + diff;
+    return state.winner === perspective ? 100_000 + houses : -100_000 + houses;
   }
   if (state.status === "draw") return 0;
 
-  let score = diff * 120 + me * 3;
-  score += (sideSeedCount(state.board, perspective) - sideSeedCount(state.board, opponent(perspective))) * 2;
-
-  for (const pit of sidePits(opponent(perspective))) {
+  let score = houses * 500 + diff * 40;
+  const other = opponent(perspective);
+  score += (territorySeedCount(state.board, territory, perspective) - territorySeedCount(state.board, territory, other)) * 2;
+  for (const pit of ownedPits(territory, other)) {
     if ((state.board[pit] ?? 0) === 3) score += 6;
   }
-  for (const pit of sidePits(perspective)) {
+  for (const pit of ownedPits(territory, perspective)) {
     if ((state.board[pit] ?? 0) === 3) score += 3;
   }
-  if (me >= 20) score += (me - 19) * 15;
-  if (them >= 20) score -= (them - 19) * 15;
   return score;
 }
 

@@ -2,11 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { housesCaptured, replayGame, type GameState, type Player } from "@/engine/oware";
+import { initialTerritory, type GameState, type Player } from "@/engine/oware";
 import type { LocalGameSession } from "@/lib/game/session";
 
 function endingLabel(reason: GameState["endReason"]) {
   if (reason === "majority") return "First to 25 seeds.";
+  if (reason === "territory") return "All six houses were captured.";
   if (reason === "starvation") return "No legal move remained.";
   if (reason === "repetition") return "The same position came around again.";
   if (reason === "resignation") return "One player left the table.";
@@ -36,7 +37,11 @@ export function ResultDialog({
 }) {
   const router = useRouter();
   const score = state.capturedSeeds;
-  const houses = housesCaptured(replayGame(state.moveHistory).applied);
+  const territory = state.territory ?? initialTerritory();
+  const houses = {
+    player1: territory.filter((owner) => owner === "player1").length,
+    player2: territory.filter((owner) => owner === "player2").length,
+  };
   const player1Name = names?.player1 ?? session?.player1Name ?? "Player";
   const player2Name = names?.player2 ?? session?.player2Name ?? "Player";
   let title = "Draw";
@@ -48,8 +53,8 @@ export function ResultDialog({
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/45 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="result-title">
-      <div className="w-full max-w-md rounded-3xl bg-paper p-8 text-center shadow-xl">
-        <h2 id="result-title" className="font-serif text-4xl">
+      <div className="max-h-[90svh] w-full max-w-md overflow-auto rounded-3xl bg-paper p-5 text-center shadow-xl sm:p-8">
+        <h2 id="result-title" className="font-serif text-3xl sm:text-4xl">
           {title}
         </h2>
         <p className="mt-4 font-serif text-3xl tabular-nums">

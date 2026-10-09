@@ -1,4 +1,4 @@
-import { relativePitNumber, type GameState, type Player } from "@/engine/oware";
+import { movePitLabel, type GameState, type Player } from "@/engine/oware";
 import { rankMoves } from "@/lib/ai";
 
 export type MoveClass =
@@ -23,7 +23,7 @@ export interface MoveAssessment {
 const ANALYSIS_DEPTH = 3;
 
 function label(player: Player, pit: number) {
-  return `Pit ${relativePitNumber(player, pit)}`;
+  return movePitLabel(player, pit);
 }
 
 /**

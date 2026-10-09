@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { OwareGameView } from "@/game/OwareGameView";
 import { useMovePlayback } from "@/components/board/useMovePlayback";
 import { useSettings } from "@/components/settings/SettingsProvider";
-import { formatMove, housesCaptured, replayGame, type AppliedMove, type GameState } from "@/engine/oware";
+import { formatMove, replayGame, type AppliedMove, type GameState } from "@/engine/oware";
 import { assessMove, classLabel, type MoveAssessment } from "@/lib/game/analysis";
 import { LocalGameSession } from "@/lib/game/session";
 import { readSnapshot } from "@/lib/storage";
@@ -195,7 +195,7 @@ export function ReviewScreen({ id }: { id: string }) {
   return (
     <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_280px]">
       <div>
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <Link href="/history" className="text-sm font-semibold text-ink-soft">
             ← History
           </Link>
@@ -203,12 +203,14 @@ export function ReviewScreen({ id }: { id: string }) {
           <span className="text-sm text-ink-soft">
             {data.scoreP1} — {data.scoreP2}
             <span className="mt-1 block text-xs">
-              {housesCaptured(replay.applied).player1} houses — {housesCaptured(replay.applied).player2} houses
+              {shown.territory.filter((owner) => owner === "player1").length} houses —{" "}
+              {shown.territory.filter((owner) => owner === "player2").length} houses
             </span>
           </span>
         </div>
         <OwareGameView
           board={shown.board}
+          territory={shown.territory}
           viewer="player1"
           legalPits={[]}
           captured={shown.capturedSeeds}

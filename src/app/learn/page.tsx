@@ -14,7 +14,7 @@ export default function LearnPage() {
           The board
         </h2>
         <p className="mt-3 leading-7 text-ink-soft">
-          Each player owns one row of six pits. The game starts with four seeds in every pit. Seeds are never sown into a store. You play from your own side, and the first player moves first.
+          Each player starts with one row of six houses. A round begins with four seeds in every house. Seeds are never sown into a store. You play from a house you own. South starts the first round, and the players take turns starting after that.
         </p>
       </section>
 
@@ -36,9 +36,10 @@ export default function LearnPage() {
         </h2>
         <p className="mt-3 leading-7 text-ink-soft">A house is captured when a sown seed makes it hold exactly four.</p>
         <ul className="mt-3 list-disc space-y-2 pl-5 leading-7 text-ink-soft">
-          <li>Four on your own side are yours immediately. The rest of the hand keeps sowing.</li>
-          <li>Four on your opponent’s side in the middle of a handful are theirs.</li>
-          <li>Four made by the last seed of a handful are yours, even on their side, and the move ends.</li>
+          <li>Four on your own houses are yours immediately. The rest of the hand keeps sowing.</li>
+          <li>Four on your opponent’s houses in the middle of a handful are theirs.</li>
+          <li>Four made by the last seed of a handful are yours, even on their houses, and the move ends.</li>
+          <li>A capture that leaves eight or fewer seeds ends the round. That player also takes what is left.</li>
         </ul>
       </section>
 
@@ -47,7 +48,7 @@ export default function LearnPage() {
           Feeding
         </h2>
         <p className="mt-3 leading-7 text-ink-soft">
-          If your opponent’s row is empty at the start of your turn, you must play a move that leaves them at least one seed, when you can. If you cannot, you take the seeds still on your side and the game ends.
+          If your opponent’s houses are empty at the start of your turn, you must play a move that leaves them at least one seed, when you can. If you cannot, each player takes the seeds on their own houses and the round ends.
         </p>
       </section>
 
@@ -56,9 +57,11 @@ export default function LearnPage() {
           Strategy
         </h2>
         <p className="mt-3 leading-7 text-ink-soft">
-          A four is the only capture, so the useful question is where the last seed of a handful will land. Making four on your own side in the middle of a sow scores and still leaves you a hand. Making four on their side before the hand is empty gives the seeds to them. Leave yourself a way to feed an empty row, or the game can end before you wanted it to.
+          A four is the only capture, so the useful question is where the last seed of a handful will land. Making four on your own houses in the middle of a sow scores and still leaves you a hand. Making four on their houses before the hand is empty gives the seeds to them.
         </p>
-        <p className="mt-3 leading-7 text-ink-soft">The first player to capture 25 seeds wins. Exactly 24 does not end the game.</p>
+        <p className="mt-3 leading-7 text-ink-soft">
+          After a round, the seeds go back as four in each house. If you captured more houses than you started with, you take that many of your opponent’s houses, starting from the right. One, two, three, or four houses do not end the match. A player with only two houses left still chooses which of them to play. The match ends when one player owns all six of the other’s houses.
+        </p>
       </section>
 
       <Link href="/play/ai" className="mt-10 inline-flex h-12 items-center rounded-full bg-forest px-6 text-sm font-semibold text-paper hover:bg-forest-dark">

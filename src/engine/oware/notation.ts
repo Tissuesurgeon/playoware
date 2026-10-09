@@ -1,12 +1,20 @@
 import { ownsPit } from "./Player";
 import type { AppliedMove, Move, Player } from "./types";
 
-/** Pit 1–6 from the player's left to right. */
+/** Pit 1–6 from the player's left to right on that player's original row. */
 export function relativePitNumber(player: Player, pit: number): number {
   if (!ownsPit(player, pit)) {
     throw new Error("Pit is not on this player's side.");
   }
   return player === "player1" ? pit + 1 : pit - 5;
+}
+
+/** A move label that still works after a player owns a house on the other row. */
+export function movePitLabel(player: Player, pit: number): string {
+  if (ownsPit(player, pit)) return `Pit ${relativePitNumber(player, pit)}`;
+  const facing: Player = player === "player1" ? "player2" : "player1";
+  if (ownsPit(facing, pit)) return `Far pit ${relativePitNumber(facing, pit)}`;
+  return `Pit ${pit + 1}`;
 }
 
 export function absolutePit(player: Player, relative: number): number {
@@ -28,11 +36,11 @@ export function housesCaptured(moves: AppliedMove[]): Record<Player, number> {
 }
 
 export function formatMove(move: Move, seedsCaptured = 0, housesTaken = 0): string {
-  const pit = relativePitNumber(move.player, move.pit);
-  if (seedsCaptured <= 0 && housesTaken <= 0) return `${move.moveNumber}. Pit ${pit}`;
+  const pit = movePitLabel(move.player, move.pit);
+  if (seedsCaptured <= 0 && housesTaken <= 0) return `${move.moveNumber}. ${pit}`;
   const houses = housesTaken === 1 ? "1 house" : `${housesTaken} houses`;
   const seeds = seedsCaptured === 1 ? "1 seed" : `${seedsCaptured} seeds`;
-  return `${move.moveNumber}. Pit ${pit} (+${seeds}, ${houses})`;
+  return `${move.moveNumber}. ${pit} (+${seeds}, ${houses})`;
 }
 
 export function pitLabel(player: Player, pit: number, seeds: number, mine: boolean): string {

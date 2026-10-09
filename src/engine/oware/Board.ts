@@ -1,4 +1,4 @@
-import { PIT_COUNT, opponent, ownsPit } from "./Player";
+import { PIT_COUNT, initialTerritory, opponent } from "./Player";
 import type { Player, SowStep } from "./types";
 
 export interface Harvest {
@@ -7,12 +7,19 @@ export interface Harvest {
   count: number;
 }
 
+export interface RoundClaim {
+  player: Player;
+  /** Seeds still in hand when the round stopped. They are not on the board. */
+  unplaced: number;
+}
+
 export interface SownBoard {
   board: number[];
   path: number[];
   lastPit: number;
   steps: SowStep[];
   harvests: Harvest[];
+  roundClaim: RoundClaim | null;
 }
 
 /**
@@ -24,7 +31,12 @@ export interface SownBoard {
  * A four on the opponent's side is captured by them during the sow, and
  * by the sower when it is made by the last seed.
  */
-export function sow(board: number[], pit: number, mover: Player): SownBoard {
+export function sow(
+  board: number[],
+  pit: number,
+  mover: Player,
+  territory: readonly Player[] = initialTerritory(),
+): SownBoard {
   const seeds = board[pit] ?? 0;
   if (!Number.isInteger(pit) || pit < 0 || pit >= PIT_COUNT) {
     throw new Error("Pit is off the board.");
@@ -43,8 +55,9 @@ export function sow(board: number[], pit: number, mover: Player): SownBoard {
   next[cursor] = 0;
   steps.push({ kind: "pickup", pit: cursor, count: hand });
   let lastPit = cursor;
+  let roundClaim: RoundClaim | null = null;
 
-  for (let guard = 0; guard < 400 && hand > 0; guard += 1) {
+  outer: for (let guard = 0; guard < 400 && hand > 0; guard += 1) {
     let index = cursor;
     while (hand > 0) {
       index = (index + 1) % PIT_COUNT;
@@ -54,13 +67,18 @@ export function sow(board: number[], pit: number, mover: Player): SownBoard {
       steps.push({ kind: "drop", pit: index });
       lastPit = index;
       if (next[index] !== 4) continue;
-      const own = ownsPit(mover, index);
+      const own = territory[index] === mover;
       const lastOfHand = hand === 0;
       const taker = own || lastOfHand ? mover : opponent(mover);
       next[index] = 0;
       const harvest: Harvest = { pit: index, player: taker, count: 4 };
       harvests.push(harvest);
       steps.push({ kind: "harvest", pit: index, player: taker, count: 4 });
+      const onBoard = next.reduce((sum, count) => sum + count, 0);
+      if (onBoard <= 8) {
+        roundClaim = { player: taker, unplaced: hand };
+        break outer;
+      }
     }
 
     if (next[lastPit] === 0 || next[lastPit] === 1) break;
@@ -73,5 +91,5 @@ export function sow(board: number[], pit: number, mover: Player): SownBoard {
     cursor = lastPit;
   }
 
-  return { board: next, path, lastPit, steps, harvests };
+  return { board: next, path, lastPit, steps, harvests, roundClaim };
 }

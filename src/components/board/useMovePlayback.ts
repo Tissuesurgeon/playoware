@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { AppliedMove, CapturedSeeds } from "@/engine/oware";
+import type { AppliedMove, CapturedSeeds, Player } from "@/engine/oware";
 import { buildMoveAnimation, foldAnimation, type VisualFrame } from "@/lib/animation/sequence";
 import { eventDuration, type AnimationSpeed } from "@/lib/animation/timing";
 import { sounds } from "@/lib/sound";
@@ -13,6 +13,12 @@ interface PlayState {
   index: number;
 }
 
+export interface SettledMove {
+  board: number[];
+  captured: CapturedSeeds;
+  currentPlayer: Player;
+}
+
 export function useMovePlayback(options: {
   speed: AnimationSpeed;
   reduced: boolean;
@@ -21,6 +27,7 @@ export function useMovePlayback(options: {
 }) {
   const [play, setPlay] = useState<PlayState | null>(null);
   const [events, setEvents] = useState<ReturnType<typeof buildMoveAnimation>>([]);
+  const [settle, setSettle] = useState<SettledMove | null>(null);
   const [rush, setRush] = useState(0);
   const onDoneRef = useRef(options.onDone);
   const soundRef = useRef(options.sound);
@@ -36,8 +43,20 @@ export function useMovePlayback(options: {
     reducedRef.current = options.reduced;
   });
 
-  const frame: VisualFrame | null =
+  const folded: VisualFrame | null =
     play && events.length > 0 ? foldAnimation(play.beforeBoard, play.beforeCaptured, events, play.index) : null;
+  const frame: VisualFrame | null =
+    folded && settle && play && play.index >= events.length - 1
+      ? {
+          ...folded,
+          board: settle.board.slice(),
+          captured: { ...settle.captured },
+          hand: 0,
+          handPit: null,
+          capture: null,
+          actor: settle.currentPlayer,
+        }
+      : folded;
 
   useEffect(() => {
     if (!play || events.length === 0 || play.index < 0) return;
@@ -56,6 +75,7 @@ export function useMovePlayback(options: {
       if (finished) {
         setPlay(null);
         setEvents([]);
+        setSettle(null);
         rushRef.current = 0;
         soundedRef.current = -1;
         setRush(0);
@@ -67,7 +87,13 @@ export function useMovePlayback(options: {
     return () => window.clearTimeout(timer);
   }, [play, events, rush]);
 
-  function start(beforeBoard: number[], beforeCaptured: CapturedSeeds, applied: AppliedMove, ended: boolean) {
+  function start(
+    beforeBoard: number[],
+    beforeCaptured: CapturedSeeds,
+    applied: AppliedMove,
+    ended: boolean,
+    settled?: SettledMove,
+  ) {
     if (reducedRef.current || speedRef.current === "instant") {
       queueMicrotask(() => onDoneRef.current());
       return;
@@ -75,6 +101,7 @@ export function useMovePlayback(options: {
     rushRef.current = 0;
     soundedRef.current = -1;
     setRush(0);
+    setSettle(settled ? { board: settled.board.slice(), captured: { ...settled.captured }, currentPlayer: settled.currentPlayer } : null);
     setEvents(buildMoveAnimation(beforeBoard, applied, ended));
     setPlay({
       beforeBoard: beforeBoard.slice(),
@@ -82,6 +109,10 @@ export function useMovePlayback(options: {
       applied,
       index: 0,
     });
+  }
+
+  function land(settled: SettledMove) {
+    setSettle({ board: settled.board.slice(), captured: { ...settled.captured }, currentPlayer: settled.currentPlayer });
   }
 
   function accelerate() {
@@ -102,6 +133,7 @@ export function useMovePlayback(options: {
     setRush(0);
     setPlay(null);
     setEvents([]);
+    setSettle(null);
   }
 
   const travelMs = eventDuration({ type: "MOVE_TO_PIT", pit: 0 }, options.speed, rush >= 1);
@@ -118,6 +150,7 @@ export function useMovePlayback(options: {
     travelMs,
     captureMs,
     start,
+    land,
     accelerate,
     stop,
   };

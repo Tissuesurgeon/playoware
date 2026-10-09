@@ -64,7 +64,8 @@ describe("illegal moves", () => {
     expect(() => empty.makeMove(0)).toThrow(/empty/i);
     expect(empty.getState().board).toEqual([0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]);
 
-    const won = gameFrom([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "player1", captured(25, 23));
+    const won = new OwareGame();
+    won.resign("player1");
     expect(won.isGameOver()).toBe(true);
     expect(() => won.makeMove(0)).toThrow(/already over/i);
   });
@@ -128,84 +129,117 @@ describe("sowing", () => {
 
 describe("captures", () => {
   it("captures four on the sower's side and continues with the remaining seeds", () => {
-    const game = gameFrom([0, 3, 3, 0, 0, 0, 1, 0, 0, 0, 0, 0], "player1", captured(20, 21));
+    const game = gameFrom([0, 3, 3, 0, 0, 0, 4, 4, 4, 4, 4, 4], "player1", captured(9, 9));
     const applied = game.makeMove(1);
     expect(applied.capturedPits).toEqual([2]);
     expect(applied.seedsCaptured).toBe(4);
     expect(applied.sowPath).toEqual([2, 3, 4]);
-    expect(game.getState().board).toEqual([0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0]);
-    expect(game.getState().capturedSeeds).toEqual(captured(24, 21));
+    expect(game.getState().board).toEqual([0, 0, 0, 1, 1, 0, 4, 4, 4, 4, 4, 4]);
+    expect(game.getState().capturedSeeds).toEqual(captured(13, 9));
     expect(game.isGameOver()).toBe(false);
   });
 
   it("lets the opponent capture a four made in the middle of the sow", () => {
-    const game = gameFrom([0, 6, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0], "player1", captured(19, 20));
+    const game = gameFrom([0, 6, 4, 4, 4, 4, 3, 0, 4, 4, 4, 4], "player1", captured(4, 3));
     const applied = game.makeMove(1);
     expect(applied.seedsCaptured).toBe(0);
     expect(applied.steps).toContainEqual({ kind: "harvest", pit: 6, player: "player2", count: 4 });
-    expect(game.getState().capturedSeeds.player2).toBe(24);
+    expect(game.getState().capturedSeeds.player2).toBe(7);
     expect(game.getState().board[6]).toBe(0);
     expect(game.getState().board[7]).toBe(1);
     expect(game.isGameOver()).toBe(false);
   });
 
   it("captures four on the opponent's side when the last seed makes them", () => {
-    const game = gameFrom([0, 5, 0, 0, 0, 0, 3, 1, 0, 0, 0, 0], "player1", captured(19, 20));
+    const game = gameFrom([0, 5, 4, 4, 4, 4, 3, 1, 4, 4, 4, 0], "player1", captured(6, 5));
     const applied = game.makeMove(1);
     expect(applied.capturedPits).toEqual([6]);
     expect(applied.seedsCaptured).toBe(4);
     expect(game.getState().board[6]).toBe(0);
-    expect(game.getState().capturedSeeds).toEqual(captured(23, 20));
+    expect(game.getState().capturedSeeds).toEqual(captured(10, 5));
     expect(game.isGameOver()).toBe(false);
   });
 });
 
 describe("feeding and starvation", () => {
-  it("ends immediately when the player to move cannot feed", () => {
+  it("starts another round when the player to move cannot feed", () => {
     const game = gameFrom([3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "player1", captured(22, 23));
-    expect(game.isGameOver()).toBe(true);
-    expect(game.getResult()).toEqual({
-      outcome: "win",
-      winner: "player1",
-      score: captured(25, 23),
-      endReason: "starvation",
-    });
-    expect(game.getState().board.every((seeds) => seeds === 0)).toBe(true);
+    expect(game.isGameOver()).toBe(false);
+    expect(game.getState().round).toBe(2);
+    expect(game.getState().currentPlayer).toBe("player2");
+    expect(game.getState().board).toEqual([4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]);
+    expect(game.getState().territory.filter((owner) => owner === "player1")).toHaveLength(6);
   });
 
-  it("lets the opponent collect when the side to move has no seeds", () => {
+  it("sets the board up again when the side to move has no seeds", () => {
     const game = gameFrom([0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0], "player1", captured(22, 22));
-    expect(game.getResult()).toMatchObject({
-      winner: "player2",
-      score: captured(22, 26),
-      endReason: "starvation",
-    });
+    expect(game.isGameOver()).toBe(false);
+    expect(game.getState().round).toBe(2);
+    expect(game.getState().board.every((seeds) => seeds === 4)).toBe(true);
   });
 
-  it("requires a feed, then ends if the opponent still cannot give seeds back", () => {
+  it("requires a feed, then starts another round if the opponent cannot give seeds back", () => {
     const game = gameFrom([0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0], "player1", captured(23, 24));
     expect(game.getLegalMoves()).toEqual([5]);
     game.makeMove(5);
-    expect(game.getResult()).toEqual({
-      outcome: "win",
-      winner: "player2",
-      score: captured(23, 25),
-      endReason: "starvation",
-    });
+    expect(game.isGameOver()).toBe(false);
+    expect(game.getState().round).toBe(2);
+    expect(game.getState().currentPlayer).toBe("player2");
   });
 });
 
 describe("game end and scoring", () => {
-  it("wins at 25 and leaves the remaining board seeds unawarded", () => {
+  it("does not end the match when a capture passes 25 seeds", () => {
     const game = gameFrom([0, 0, 0, 0, 1, 3, 1, 0, 0, 0, 0, 0], "player1", captured(21, 22));
     game.makeMove(4);
+    expect(game.isGameOver()).toBe(false);
+    expect(game.getState().round).toBe(2);
+    expect(game.getState().board.every((seeds) => seeds === 4)).toBe(true);
+  });
+
+  it("keeps playing after a round that captures one to four houses", () => {
+    for (const extra of [1, 2, 3, 4]) {
+      const player1 = 23 + extra * 4;
+      const game = gameFrom([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "player1", captured(player1, 48 - 1 - player1));
+      expect(game.isGameOver()).toBe(false);
+      expect(game.getState().round).toBe(2);
+      expect(game.getState().currentPlayer).toBe("player2");
+      expect(game.getState().board.every((seeds) => seeds === 4)).toBe(true);
+      expect(game.getState().territory.filter((owner) => owner === "player1")).toHaveLength(6 + extra);
+    }
+  });
+
+  it("lets a player with two houses choose either of them", () => {
+    const territory = Array.from({ length: 12 }, (_, pit) => (pit < 2 ? "player1" : "player2")) as Array<
+      "player1" | "player2"
+    >;
+    const game = new OwareGame({
+      territory,
+      currentPlayer: "player1",
+      alreadyResolved: true,
+    });
+    expect(game.isGameOver()).toBe(false);
+    expect(game.getLegalMoves()).toEqual([0, 1]);
+    expect(() => game.makeMove(1)).not.toThrow();
+  });
+
+  it("ends only when one player owns every house", () => {
+    const territory = Array.from({ length: 12 }, (_, pit) => (pit === 11 ? "player2" : "player1")) as Array<
+      "player1" | "player2"
+    >;
+    const game = new OwareGame({
+      board: [3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      territory,
+      currentPlayer: "player1",
+      capturedSeeds: captured(41, 0),
+    });
+    game.makeMove(0);
     expect(game.getResult()).toMatchObject({
       outcome: "win",
       winner: "player1",
-      score: captured(25, 22),
-      endReason: "majority",
+      endReason: "territory",
     });
-    expect(game.getState().board[6]).toBe(1);
+    expect(game.getState().territory.every((owner) => owner === "player1")).toBe(true);
   });
 
   it("does not end when each player has captured two houses", () => {
@@ -228,28 +262,42 @@ describe("game end and scoring", () => {
     expect(game.getState().board[1]).toBe(1);
   });
 
-  it("draws at 24–24 when starvation awards the rest", () => {
-    const game = gameFrom([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "player1", captured(22, 24));
-    expect(game.getResult()).toEqual({
-      outcome: "draw",
-      winner: undefined,
-      score: captured(24, 24),
-      endReason: "starvation",
-    });
+  it("keeps the same houses and replays after a 24–24 round", () => {
+    const board = [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2];
+    const scores = captured(22, 22);
+    const game = gameFrom(board, "player1", scores, [positionKey(board, "player1", scores)]);
+    expect(game.isGameOver()).toBe(false);
+    expect(game.getState().round).toBe(2);
+    expect(game.getState().currentPlayer).toBe("player2");
+    expect(game.getState().territory.filter((owner) => owner === "player1")).toHaveLength(6);
+    expect(game.getState().board.every((seeds) => seeds === 4)).toBe(true);
   });
 
-  it("ends a repeated position by awarding each side its own seeds", () => {
+  it("starts another round when that opening was already played", () => {
+    const board = [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2];
+    const scores = captured(22, 22);
+    const same = "player1,player1,player1,player1,player1,player1,player2,player2,player2,player2,player2,player2";
+    const game = new OwareGame({
+      board,
+      currentPlayer: "player1",
+      capturedSeeds: scores,
+      seen: [positionKey(board, "player1", scores)],
+      openings: [`${same}|player1`, `${same}|player2`],
+    });
+    expect(game.isGameOver()).toBe(false);
+    expect(game.getState().round).toBe(2);
+    expect(game.getState().currentPlayer).toBe("player2");
+    expect(game.getState().board.every((seeds) => seeds === 4)).toBe(true);
+  });
+
+  it("ends a repeated position by starting the next round", () => {
     const board = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2];
     const scores = captured(22, 23);
     const key = positionKey(board, "player1", scores);
     const game = gameFrom(board, "player1", scores, [key]);
-    expect(game.getResult()).toEqual({
-      outcome: "win",
-      winner: "player2",
-      score: captured(23, 25),
-      endReason: "repetition",
-    });
-    expect(game.getState().board.every((seeds) => seeds === 0)).toBe(true);
+    expect(game.isGameOver()).toBe(false);
+    expect(game.getState().round).toBe(2);
+    expect(game.getState().board.every((seeds) => seeds === 4)).toBe(true);
   });
 });
 
@@ -271,6 +319,8 @@ describe("move history and replay", () => {
     expect(formatMove(history[0])).toBe("1. Pit 3");
     expect(formatMove(history[0], 4, 1)).toBe("1. Pit 3 (+4 seeds, 1 house)");
     expect(formatMove(history[0], 8, 2)).toBe("1. Pit 3 (+8 seeds, 2 houses)");
+    expect(formatMove({ player: "player1", pit: 11, moveNumber: 4 })).toBe("4. Far pit 6");
+    expect(formatMove({ player: "player2", pit: 0, moveNumber: 2 }, 4, 1)).toBe("2. Far pit 1 (+4 seeds, 1 house)");
     const capture = new OwareGame({
       board: [0, 3, 3, 0, 0, 0, 1, 0, 0, 0, 0, 0],
       capturedSeeds: { player1: 20, player2: 21 },

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LocalGameSession } from "@/lib/game/session";
 import { aiLabel } from "@/lib/format";
-import { readLocalName } from "@/lib/settings";
+import { readLocalName, writeLocalName } from "@/lib/settings";
 import { writeSnapshot } from "@/lib/storage";
 import type { Difficulty } from "@/lib/ai";
 
@@ -16,6 +16,24 @@ export async function loadName() {
     return body.displayName || readLocalName();
   } catch {
     return readLocalName();
+  }
+}
+
+export async function saveDisplayName(raw: string): Promise<{ name: string; persisted: boolean }> {
+  const name = raw.trim().slice(0, 24);
+  if (!name) return { name: "", persisted: false };
+  writeLocalName(name);
+  try {
+    const response = await fetch("/api/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayName: name }),
+    });
+    if (!response.ok) return { name, persisted: false };
+    const body = (await response.json()) as { displayName?: string };
+    return { name: body.displayName || name, persisted: true };
+  } catch {
+    return { name, persisted: false };
   }
 }
 

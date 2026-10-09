@@ -23,8 +23,9 @@ The full rules are in [docs/OWARE_RULES.md](docs/OWARE_RULES.md).
 - Lift a pit on your side and sow one seed at a time, anti-clockwise.
 - If the last seed lands in a house that already had seeds, pick that house up and keep sowing.
 - The hand stops when the last seed lands in an empty house.
-- A house that reaches exactly four is captured. The first player to capture 25 seeds wins.
-- If your opponent’s row is empty, you must feed them when you can.
+- A house that reaches exactly four is captured. A round ends when eight or fewer seeds are left, then the board is set with four seeds again.
+- The player who captured more houses takes that many from the opponent. The match ends when one player owns all six of the other’s houses.
+- If your opponent’s houses are empty, you must feed them when you can.
 
 ## Stack
 

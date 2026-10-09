@@ -8,8 +8,9 @@ import { PlayerBar } from "@/components/game/PlayerBar";
 import { ResultDialog } from "@/components/game/ResultDialog";
 import { useSettings } from "@/components/settings/SettingsProvider";
 import { Button } from "@/components/ui/Button";
-import { absolutePit, housesCaptured, initialBoard, opponent, replayGame, type AppliedMove, type CapturedSeeds, type GameState } from "@/engine/oware";
+import { initialBoard, initialTerritory, opponent, type AppliedMove, type CapturedSeeds, type GameState, type Player } from "@/engine/oware";
 import { OwareGameView } from "@/game/OwareGameView";
+import { ownedHousesInView } from "@/game/layout/pits";
 import { socketUrl } from "@/realtime/browser";
 import type { MatchSnapshot, ServerMessage } from "@/realtime/protocol";
 
@@ -50,8 +51,10 @@ export function OnlineMatch({ id }: { id: string }) {
     },
   });
   const startRef = useRef(playback.start);
+  const landRef = useRef(playback.land);
   const stopRef = useRef(playback.stop);
   startRef.current = playback.start;
+  landRef.current = playback.land;
   stopRef.current = playback.stop;
 
   function applySnapshot(next: MatchSnapshot) {
@@ -75,8 +78,9 @@ export function OnlineMatch({ id }: { id: string }) {
       const current = snapshotRef.current;
       const number = Number(event.key);
       if (!current?.yourTurn || number < 1 || number > 6 || animatingRef.current) return;
-      const pit = absolutePit(current.you ?? "player1", number);
-      if (!current.legalPits.includes(pit)) return;
+      const viewer = current.you ?? "player1";
+      const pit = ownedHousesInView(viewer, current.territory ?? initialTerritory())[number - 1];
+      if (pit === undefined || !current.legalPits.includes(pit)) return;
       void sendAction(`/api/matches/${id}/moves`, { pit });
     }
     window.addEventListener("keydown", onKey);
@@ -98,6 +102,9 @@ export function OnlineMatch({ id }: { id: string }) {
         if (next.version === versionRef.current) {
           snapshotRef.current = next;
           setSnapshot(next);
+          if (animatingRef.current) {
+            landRef.current({ board: next.board, captured: next.captured, currentPlayer: next.currentPlayer });
+          }
           return;
         }
         if (animatingRef.current) {
@@ -187,7 +194,19 @@ export function OnlineMatch({ id }: { id: string }) {
     ) {
       versionRef.current = payload.version;
       animatingRef.current = true;
-      startRef.current(payload.beforeBoard, payload.beforeCaptured, payload.applied, payload.snapshot?.status === "completed");
+      startRef.current(
+        payload.beforeBoard,
+        payload.beforeCaptured,
+        payload.applied,
+        payload.snapshot?.status === "completed",
+        payload.snapshot
+          ? {
+              board: payload.snapshot.board,
+              captured: payload.snapshot.captured,
+              currentPlayer: payload.snapshot.currentPlayer,
+            }
+          : undefined,
+      );
       if (payload.snapshot) {
         snapshotRef.current = payload.snapshot;
         setSnapshot(payload.snapshot);
@@ -223,8 +242,12 @@ export function OnlineMatch({ id }: { id: string }) {
   const captured = frame?.captured ?? snapshot.captured;
   const over = snapshot.status === "completed" || snapshot.status === "expired" || snapshot.status === "abandoned";
   const waiting = snapshot.status === "waiting";
+  const territory = snapshot.territory?.length === 12 ? snapshot.territory : initialTerritory();
   const state: GameState = {
     board: snapshot.board,
+    territory,
+    round: snapshot.round ?? 1,
+    openings: [],
     currentPlayer: snapshot.currentPlayer,
     capturedSeeds: snapshot.captured,
     moveNumber: snapshot.pits.length,
@@ -233,17 +256,20 @@ export function OnlineMatch({ id }: { id: string }) {
     endReason: (snapshot.endReason as GameState["endReason"]) ?? undefined,
     moveHistory: snapshot.pits.map((pit, index) => ({
       pit,
-      player: index % 2 === 0 ? "player1" : "player2",
+      player: (index % 2 === 0 ? "player1" : "player2") as Player,
       moveNumber: index + 1,
     })),
   };
-  const houses = housesCaptured(replayGame(state.moveHistory).applied);
+  const houses = {
+    player1: territory.filter((owner) => owner === "player1").length,
+    player2: territory.filter((owner) => owner === "player2").length,
+  };
   const speedLabel = settings.animation === "fast" ? "Fast" : settings.animation === "instant" ? "Instant" : "Normal";
   const invite = link ? `${window.location.origin}${link}` : null;
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <Link href="/play" className="text-sm font-semibold text-ink-soft">
           ← Back
         </Link>
@@ -305,6 +331,7 @@ export function OnlineMatch({ id }: { id: string }) {
       />
       <OwareGameView
         board={board.length === 12 ? board : initialBoard()}
+        territory={territory}
         viewer={you}
         legalPits={playback.playing || over || waiting ? [] : snapshot.legalPits}
         captured={captured}
@@ -341,6 +368,8 @@ export function OnlineMatch({ id }: { id: string }) {
         </div>
       ) : null}
       <p className="text-center text-sm text-ink-soft tabular-nums">
+        Round {snapshot.round ?? 1}
+        <span className="mx-2">·</span>
         {captured.player1} — {captured.player2} seeds
         <span className="mx-2">·</span>
         {houses.player1} — {houses.player2} houses

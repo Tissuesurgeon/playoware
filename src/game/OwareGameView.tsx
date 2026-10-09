@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Component, type ReactNode } from "react";
-import { ownsPit, pitLabel } from "@/engine/oware";
+import { initialTerritory, pitLabel } from "@/engine/oware";
 import type { SceneBoardProps } from "@/game/board-types";
 
 const OwareScene = dynamic(() => import("@/game/three/OwareScene").then((mod) => mod.OwareScene), {
@@ -32,6 +32,7 @@ class BoardBoundary extends Component<{ children: ReactNode }, { failed: boolean
 
 export function OwareGameView({
   board,
+  territory = initialTerritory(),
   viewer,
   legalPits,
   captured = { player1: 0, player2: 0 },
@@ -41,8 +42,8 @@ export function OwareGameView({
   ...scene
 }: SceneBoardProps) {
   const frame = preview
-    ? "relative h-[250px] sm:h-[280px] md:h-[min(44vh,360px)] md:min-h-[260px]"
-    : "relative h-[min(68vh,620px)] min-h-[320px]";
+    ? "relative h-[220px] sm:h-[260px] md:h-[min(40vh,340px)] md:min-h-[240px]"
+    : "relative h-[min(42svh,420px)] min-h-[210px] sm:h-[min(50vh,500px)] sm:min-h-[260px] lg:h-[min(56vh,540px)]";
   return (
     <div>
       <div className={`${frame} w-full overflow-hidden rounded-[28px] bg-cream`}>
@@ -50,6 +51,7 @@ export function OwareGameView({
           <BoardBoundary>
             <OwareScene
               board={board}
+              territory={territory}
               viewer={viewer}
               legalPits={legalPits}
               captured={captured}
@@ -66,7 +68,7 @@ export function OwareGameView({
           const legal = !disabled && legalPits.includes(pit);
           return (
             <button key={pit} type="button" disabled={!legal} onClick={() => onPlay?.(pit)}>
-              {pitLabel(viewer, pit, count ?? 0, ownsPit(viewer, pit))}
+              {pitLabel(viewer, pit, count ?? 0, territory[pit] === viewer)}
             </button>
           );
         })}

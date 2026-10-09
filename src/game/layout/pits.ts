@@ -28,6 +28,15 @@ export function pitPosition(engineIndex: number): { x: number; z: number } {
   };
 }
 
+/** Owned houses from the viewer's left, near row first, then the far row. */
+export function ownedHousesInView(viewer: Player, territory: readonly Player[]): number[] {
+  const order =
+    viewer === "player1"
+      ? [0, 1, 2, 3, 4, 5, 11, 10, 9, 8, 7, 6]
+      : [6, 7, 8, 9, 10, 11, 5, 4, 3, 2, 1, 0];
+  return order.filter((pit) => territory[pit] === viewer);
+}
+
 /** Same mapping after turning the board so `viewer` sits at the near side. */
 export function viewerPitPosition(engineIndex: number, viewer: Player): { x: number; z: number } {
   const local = pitPosition(engineIndex);

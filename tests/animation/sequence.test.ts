@@ -53,7 +53,7 @@ describe("buildMoveAnimation", () => {
   });
 
   it("captures four and keeps the remaining seeds in hand", () => {
-    const { events } = play([0, 3, 3, 0, 0, 0, 1, 0, 0, 0, 0, 0], 1, "player1", captured(20, 21));
+    const { events } = play([0, 3, 3, 0, 0, 0, 4, 4, 4, 4, 4, 4], 1, "player1", captured(9, 9));
     expect(events).toContainEqual({ type: "CAPTURE_PIT", pit: 2, seedCount: 4, player: "player1" });
     expect(events).toContainEqual({ type: "UPDATE_SCORE", player: "player1", amount: 4 });
     const captureAt = events.findIndex((event) => event.type === "CAPTURE_PIT");

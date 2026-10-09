@@ -4,6 +4,7 @@ export type GameStatus = "in_progress" | "won" | "draw";
 
 export type EndReason =
   | "majority"
+  | "territory"
   | "starvation"
   | "repetition"
   | "resignation"
@@ -25,6 +26,11 @@ export interface CapturedSeeds {
 
 export interface GameState {
   board: number[];
+  /** Owner of each pit. A player may own houses on both rows. */
+  territory: Player[];
+  round: number;
+  /** Round openings already played, as territory plus the player who started. */
+  openings: string[];
   currentPlayer: Player;
   capturedSeeds: CapturedSeeds;
   moveNumber: number;
@@ -59,6 +65,9 @@ export interface AppliedMove {
 
 export interface GameConfig {
   board?: number[];
+  territory?: Player[];
+  round?: number;
+  openings?: string[];
   currentPlayer?: Player;
   capturedSeeds?: CapturedSeeds;
   moveNumber?: number;

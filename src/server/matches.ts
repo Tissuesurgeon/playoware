@@ -511,6 +511,8 @@ function snapshotOf(loaded: Loaded, userId: string): MatchSnapshot {
     player1Name: loaded.match.player1Name,
     player2Name: loaded.match.player2Name,
     board: state.board,
+    territory: state.territory,
+    round: state.round,
     currentPlayer: state.currentPlayer,
     captured: state.capturedSeeds,
     pits: state.moveHistory.map((move) => move.pit),

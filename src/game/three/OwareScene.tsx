@@ -15,8 +15,9 @@ import {
   type Mesh,
   type PerspectiveCamera as PerspectiveCameraImpl,
 } from "three";
-import { opponent, ownsPit, relativePitNumber, type Player } from "@/engine/oware";
+import { initialTerritory, opponent, ownsPit, relativePitNumber, type Player } from "@/engine/oware";
 import { dropEase, easeInOut, HandMotion } from "@/game/animation/motion";
+import { fitCamera } from "@/game/layout/camera";
 import { captureBowlPosition, pitPosition } from "@/game/layout/pits";
 import { getSeedPosition } from "@/game/layout/seeds";
 import type { HandVisual, SceneBoardProps } from "@/game/board-types";
@@ -31,6 +32,7 @@ const pitMaterial = new MeshStandardMaterial({ color: "#1a0e09", roughness: 0.94
 const seedMaterial = new MeshStandardMaterial({ color: "#f4e7cb", roughness: 0.46, metalness: 0.02 });
 const bowlMaterial = new MeshStandardMaterial({ color: "#4a2c1c", roughness: 0.84 });
 const ringIdle = new MeshStandardMaterial({ color: "#5a3824", roughness: 0.8 });
+const ringOwned = new MeshStandardMaterial({ color: "#2c6b4a", roughness: 0.48, emissive: "#1f4d36", emissiveIntensity: 0.35 });
 const ringLegal = new MeshStandardMaterial({ color: "#e7b15a", roughness: 0.42, emissive: "#8a5a22", emissiveIntensity: 0.35 });
 const ringHot = new MeshStandardMaterial({ color: "#f3d7a1", roughness: 0.35, emissive: "#e7b15a", emissiveIntensity: 0.55 });
 const ringForfeit = new MeshStandardMaterial({ color: "#8d3b32", roughness: 0.6, emissive: "#5a241e", emissiveIntensity: 0.2 });
@@ -38,32 +40,21 @@ const mouthMaterial = new MeshStandardMaterial({ transparent: true, opacity: 0.0
 
 function FrameCamera({ preview = false }: { preview?: boolean }) {
   const width = useThree((state) => state.size.width);
+  const height = useThree((state) => state.size.height);
   const invalidate = useThree((state) => state.invalidate);
-  const phone = width < 520;
-  const narrow = width < 900;
   const camera = useRef<PerspectiveCameraImpl>(null);
+  const fit = useMemo(() => fitCamera(width, height, preview), [width, height, preview]);
 
   useLayoutEffect(() => {
     camera.current?.lookAt(0, -0.1, 0);
     invalidate();
-  }, [phone, narrow, preview, invalidate]);
+  }, [fit, invalidate]);
 
   useFrame(() => {
     camera.current?.lookAt(0, -0.1, 0);
   });
 
-  return (
-    <PerspectiveCamera
-      ref={camera}
-      makeDefault
-      near={0.1}
-      far={50}
-      fov={preview && phone ? 36 : phone ? 48 : narrow ? 36 : 32}
-      position={
-        preview && phone ? [0, 8.2, 6.2] : phone ? [0, 11.5, 8.4] : narrow ? [0, 8.4, 7.2] : [0, 5.6, 6.6]
-      }
-    />
-  );
+  return <PerspectiveCamera ref={camera} makeDefault near={0.1} far={50} fov={fit.fov} position={fit.position} />;
 }
 
 function SeedMesh({
@@ -120,6 +111,7 @@ function Pit({
   index,
   count,
   viewer,
+  owned,
   legal,
   hot,
   forfeit,
@@ -131,6 +123,7 @@ function Pit({
   index: number;
   count: number;
   viewer: Player;
+  owned: boolean;
   legal: boolean;
   hot: boolean;
   forfeit: boolean;
@@ -144,7 +137,7 @@ function Pit({
   const owner = ownsPit(viewer, index) ? viewer : opponent(viewer);
   const number = relativePitNumber(owner, index);
   const outward = index < 6 ? 0.58 : -0.58;
-  const ring = hot ? ringHot : forfeit ? ringForfeit : legal ? ringLegal : ringIdle;
+  const ring = hot ? ringHot : forfeit ? ringForfeit : legal ? ringLegal : owned ? ringOwned : ringIdle;
 
   function hover(event: ThreeEvent<PointerEvent>, active: boolean) {
     event.stopPropagation();
@@ -203,7 +196,7 @@ function Pit({
         />
       ))}
       <Html position={[0, 0.02, outward]} center zIndexRange={[2, 0]} style={{ pointerEvents: "none" }}>
-        <span className="text-[11px] font-semibold text-cream/80">{number}</span>
+        <span className={`text-[11px] font-semibold ${owned ? "text-paper" : "text-cream/70"}`}>{number}</span>
       </Html>
     </group>
   );
@@ -368,6 +361,7 @@ function BoardShell() {
 function BoardModel(props: SceneBoardProps) {
   const {
     board,
+    territory = initialTerritory(),
     viewer,
     legalPits,
     selectedPit,
@@ -401,6 +395,7 @@ function BoardModel(props: SceneBoardProps) {
           index={index}
           count={count ?? 0}
           viewer={viewer}
+          owned={territory[index] === viewer}
           legal={!disabled && legalPits.includes(index)}
           hot={selectedPit === index || lastPit === index}
           forfeit={forfeitedPits.includes(index)}

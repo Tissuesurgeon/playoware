@@ -10,13 +10,13 @@ import { ResultDialog } from "@/components/game/ResultDialog";
 import { useSettings } from "@/components/settings/SettingsProvider";
 import { Button } from "@/components/ui/Button";
 import {
-  absolutePit,
   formatMove,
-  housesCaptured,
+  initialTerritory,
   opponent,
   replayGame,
   type Player,
 } from "@/engine/oware";
+import { ownedHousesInView } from "@/game/layout/pits";
 import { chooseMove } from "@/lib/ai";
 import { LocalGameSession, type SessionSnapshot } from "@/lib/game/session";
 import { sounds } from "@/lib/sound";
@@ -187,11 +187,16 @@ export function GameScreen({ id }: { id: string }) {
     try {
       const before = current.getState();
       const applied = current.submitMove(pit, Date.now());
-      writeSnapshot(current.snapshot(), current.getState().status === "in_progress");
+      const after = current.getState();
+      writeSnapshot(current.snapshot(), after.status === "in_progress");
       setThinking(false);
       releaseAiTurn(id);
       if (applied.grandSlam) setNotice("All six houses cannot be captured. The seeds stay.");
-      playback.start(before.board, before.capturedSeeds, applied, current.getState().status !== "in_progress");
+      playback.start(before.board, before.capturedSeeds, applied, after.status !== "in_progress", {
+        board: after.board,
+        captured: after.capturedSeeds,
+        currentPlayer: after.currentPlayer,
+      });
     } catch {
       setThinking(false);
       setGameBusy(id, false);
@@ -227,9 +232,14 @@ export function GameScreen({ id }: { id: string }) {
     }
     const before = current.getState();
     const applied = current.submitMove(pit, Date.now());
-    writeSnapshot(current.snapshot(), current.getState().status === "in_progress");
+    const after = current.getState();
+    writeSnapshot(current.snapshot(), after.status === "in_progress");
     setNotice(applied.grandSlam ? "All six houses cannot be captured. The seeds stay." : null);
-    playback.start(before.board, before.capturedSeeds, applied, current.getState().status !== "in_progress");
+    playback.start(before.board, before.capturedSeeds, applied, after.status !== "in_progress", {
+      board: after.board,
+      captured: after.capturedSeeds,
+      currentPlayer: after.currentPlayer,
+    });
   }
 
   useEffect(() => {
@@ -260,8 +270,11 @@ export function GameScreen({ id }: { id: string }) {
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
       const number = Number(event.key);
       if (number < 1 || number > 6 || !session) return;
-      const viewer: Player = session.mode === "ai" ? "player1" : session.getState().currentPlayer;
-      playPit(absolutePit(viewer, number));
+      const live = session.getState();
+      const viewer: Player = session.mode === "ai" ? "player1" : live.currentPlayer;
+      const pit = ownedHousesInView(viewer, live.territory)[number - 1];
+      if (pit === undefined) return;
+      playPit(pit);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -296,19 +309,17 @@ export function GameScreen({ id }: { id: string }) {
       ? []
       : session.getLegalMoves();
   const captured = frame?.captured ?? state.capturedSeeds;
-  const playingMove = playback.applied?.move.moveNumber;
-  const settledMoves = replay.applied.filter((applied) => applied.move.moveNumber !== playingMove);
-  const houses = housesCaptured(settledMoves);
-  if (frame) {
-    houses.player1 += frame.houses.player1;
-    houses.player2 += frame.houses.player2;
-  }
+  const territory = state.territory ?? initialTerritory();
+  const owned = {
+    player1: territory.filter((owner) => owner === "player1").length,
+    player2: territory.filter((owner) => owner === "player2").length,
+  };
   const shownSave = saveState === "idle" && session.serverId ? "saved" : saveState;
   const speedLabel = settings.animation === "fast" ? "Fast" : settings.animation === "instant" ? "Instant" : "Normal";
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <Link
           href="/play"
           className="text-sm font-semibold text-ink-soft"
@@ -354,6 +365,7 @@ export function GameScreen({ id }: { id: string }) {
       />
       <OwareGameView
         board={frame?.board ?? state.board}
+        territory={territory}
         viewer={viewer}
         legalPits={legal}
         captured={captured}
@@ -384,6 +396,55 @@ export function GameScreen({ id }: { id: string }) {
         disabled={playback.playing || thinking || over}
       />
       <PlayerBar name={names[viewer]} clockMs={clocks[viewer]} active={!playback.playing && !over && state.currentPlayer === viewer} />
+      <p className="text-center text-sm text-ink-soft tabular-nums">
+        Round {state.round} · {owned.player1} — {owned.player2} houses
+      </p>
+      <div className="flex justify-center gap-2">
+        <Button
+          variant="secondary"
+          disabled={over || playback.playing || thinking}
+          onClick={() => {
+            const result = session.offerDraw(session.mode === "ai" ? "player1" : state.currentPlayer, Date.now());
+            writeSnapshot(session.snapshot(), session.getState().status === "in_progress");
+            if (result === "declined") setNotice("The AI declines the draw.");
+            if (result === "accepted") {
+              if (settings.sound) sounds.end();
+              void persistResult(session);
+            }
+          }}
+        >
+          Draw
+        </Button>
+        <Button variant="danger" disabled={over} onClick={() => setConfirmResign(true)}>
+          Resign
+        </Button>
+      </div>
+      {offer ? (
+        <div className="mx-auto w-full max-w-sm rounded-2xl bg-paper p-3 text-sm">
+          <p>{names[offer]} offers a draw.</p>
+          <div className="mt-3 flex gap-2">
+            <Button
+              onClick={() => {
+                session.respondDraw(opponent(offer), true, Date.now());
+                writeSnapshot(session.snapshot(), false);
+                if (settings.sound) sounds.end();
+                void persistResult(session);
+              }}
+            >
+              Accept
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                session.respondDraw(opponent(offer), false, Date.now());
+                writeSnapshot(session.snapshot(), true);
+              }}
+            >
+              Decline
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {notice ? (
         <p className={`text-center text-sm ${notice.startsWith("All six houses") ? "text-ink-soft" : "text-bad"}`}>{notice}</p>
       ) : null}
@@ -397,7 +458,7 @@ export function GameScreen({ id }: { id: string }) {
               <dd className="text-right font-semibold tabular-nums">
                 {captured.player1} {captured.player1 === 1 ? "seed" : "seeds"}
                 <span className="mt-0.5 block text-xs font-normal text-ink-soft">
-                  {houses.player1} {houses.player1 === 1 ? "house" : "houses"}
+                  {owned.player1} {owned.player1 === 1 ? "house" : "houses"}
                 </span>
               </dd>
             </div>
@@ -406,57 +467,11 @@ export function GameScreen({ id }: { id: string }) {
               <dd className="text-right font-semibold tabular-nums">
                 {captured.player2} {captured.player2 === 1 ? "seed" : "seeds"}
                 <span className="mt-0.5 block text-xs font-normal text-ink-soft">
-                  {houses.player2} {houses.player2 === 1 ? "house" : "houses"}
+                  {owned.player2} {owned.player2 === 1 ? "house" : "houses"}
                 </span>
               </dd>
             </div>
           </dl>
-          <div className="mt-5 flex gap-2">
-            <Button
-              variant="secondary"
-              disabled={over || playback.playing || thinking}
-              onClick={() => {
-                const result = session.offerDraw(session.mode === "ai" ? "player1" : state.currentPlayer, Date.now());
-                writeSnapshot(session.snapshot(), session.getState().status === "in_progress");
-                if (result === "declined") setNotice("The AI declines the draw.");
-                if (result === "accepted") {
-                  if (settings.sound) sounds.end();
-                  void persistResult(session);
-                }
-              }}
-            >
-              Draw
-            </Button>
-            <Button variant="danger" disabled={over} onClick={() => setConfirmResign(true)}>
-              Resign
-            </Button>
-          </div>
-          {offer ? (
-            <div className="mt-4 rounded-2xl bg-cream p-3 text-sm">
-              <p>{names[offer]} offers a draw.</p>
-              <div className="mt-3 flex gap-2">
-                <Button
-                  onClick={() => {
-                    session.respondDraw(opponent(offer), true, Date.now());
-                    writeSnapshot(session.snapshot(), false);
-                    if (settings.sound) sounds.end();
-                    void persistResult(session);
-                  }}
-                >
-                  Accept
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    session.respondDraw(opponent(offer), false, Date.now());
-                    writeSnapshot(session.snapshot(), true);
-                  }}
-                >
-                  Decline
-                </Button>
-              </div>
-            </div>
-          ) : null}
         </div>
         <div className="rounded-3xl border border-line bg-paper p-5">
           <h2 className="text-xs font-semibold tracking-wide text-ink-soft uppercase">Game</h2>
@@ -466,7 +481,7 @@ export function GameScreen({ id }: { id: string }) {
               <li key={applied.move.moveNumber}>{formatMove(applied.move, applied.seedsCaptured, applied.capturedPits.length)}</li>
             ))}
           </ol>
-          <p className="mt-3 text-xs text-ink-soft">Keys 1–6 play the pits on your side, left to right.</p>
+          <p className="mt-3 text-xs text-ink-soft">Keys 1–6 play the houses you still own, from the left.</p>
         </div>
       </section>
       {confirmResign && !over ? (

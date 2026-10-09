@@ -15,6 +15,7 @@ export interface CaptureVisual {
 
 export interface SceneBoardProps {
   board: number[];
+  territory?: Player[];
   viewer: Player;
   legalPits: number[];
   selectedPit?: number;

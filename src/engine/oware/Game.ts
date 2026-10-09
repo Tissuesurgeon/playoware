@@ -1,11 +1,15 @@
 import { sow } from "./Board";
 import {
+  PIT_COUNT,
   TOTAL_SEEDS,
-  WIN_SCORE,
   initialBoard,
+  initialTerritory,
+  nextTerritory,
+  openingKey,
   opponent,
-  sidePits,
-  sideSeedCount,
+  ownedPits,
+  roundStarter,
+  territorySeedCount,
 } from "./Player";
 import { illegalMoveReason, legalMoves } from "./Rules";
 import type {
@@ -31,8 +35,9 @@ export function positionKey(
   board: number[],
   player: Player,
   captured: CapturedSeeds,
+  territory: readonly Player[] = initialTerritory(),
 ): string {
-  return `${board.join(",")}|${player}|${captured.player1}|${captured.player2}`;
+  return `${board.join(",")}|${player}|${captured.player1}|${captured.player2}|${territory.join(",")}`;
 }
 
 /**
@@ -41,6 +46,9 @@ export function positionKey(
  */
 export class OwareGame {
   private board: number[];
+  private territory: Player[];
+  private round: number;
+  private openings: Set<string>;
   private currentPlayer: Player;
   private captured: CapturedSeeds;
   private moveNumber: number;
@@ -52,6 +60,9 @@ export class OwareGame {
 
   constructor(config: GameConfig = {}) {
     this.board = config.board ? config.board.slice() : initialBoard();
+    this.territory = config.territory ? config.territory.slice() : initialTerritory();
+    this.round = config.round ?? 1;
+    this.openings = new Set(config.openings ?? []);
     this.currentPlayer = config.currentPlayer ?? "player1";
     this.captured = {
       player1: config.capturedSeeds?.player1 ?? 0,
@@ -66,6 +77,7 @@ export class OwareGame {
     this.assertSeeds();
 
     if (this.status === "in_progress" && !config.alreadyResolved) {
+      if (this.openings.size === 0) this.openings.add(openingKey(this.territory, roundStarter(this.round)));
       this.resolvePosition();
     }
   }
@@ -81,6 +93,9 @@ export class OwareGame {
   static fromState(state: GameState, seen: string[] = []): OwareGame {
     return new OwareGame({
       board: state.board,
+      territory: state.territory,
+      round: state.round,
+      openings: state.openings,
       currentPlayer: state.currentPlayer,
       capturedSeeds: state.capturedSeeds,
       moveNumber: state.moveNumber,
@@ -96,6 +111,9 @@ export class OwareGame {
   clone(options?: { trackHistory?: boolean }): OwareGame {
     return new OwareGame({
       board: this.board,
+      territory: this.territory,
+      round: this.round,
+      openings: [...this.openings],
       currentPlayer: this.currentPlayer,
       capturedSeeds: this.captured,
       moveNumber: this.moveNumber,
@@ -111,6 +129,9 @@ export class OwareGame {
   getState(): GameState {
     return {
       board: this.board.slice(),
+      territory: this.territory.slice(),
+      round: this.round,
+      openings: [...this.openings],
       currentPlayer: this.currentPlayer,
       capturedSeeds: { ...this.captured },
       moveNumber: this.moveNumber,
@@ -123,18 +144,18 @@ export class OwareGame {
 
   getLegalMoves(): number[] {
     if (this.status !== "in_progress") return [];
-    return legalMoves(this.board, this.currentPlayer);
+    return legalMoves(this.board, this.currentPlayer, this.territory);
   }
 
   makeMove(pitIndex: number): AppliedMove {
     if (this.status !== "in_progress") {
       throw new IllegalMoveError("The game is already over.");
     }
-    const reason = illegalMoveReason(this.board, this.currentPlayer, pitIndex);
+    const reason = illegalMoveReason(this.board, this.currentPlayer, pitIndex, this.territory);
     if (reason) throw new IllegalMoveError(reason);
 
     const player = this.currentPlayer;
-    const sown = sow(this.board, pitIndex, player);
+    const sown = sow(this.board, pitIndex, player, this.territory);
     this.board = sown.board;
     let seedsCaptured = 0;
     const capturedPits: number[] = [];
@@ -162,10 +183,10 @@ export class OwareGame {
       steps: sown.steps,
     };
 
-    const { player1, player2 } = this.captured;
-    if (player1 >= WIN_SCORE || player2 >= WIN_SCORE) {
-      if (player1 === player2) this.finish("draw", undefined, "majority");
-      else this.finish("won", player1 > player2 ? "player1" : "player2", "majority");
+    this.board = sown.board;
+    if (sown.roundClaim) {
+      this.claimRemainder(sown.roundClaim.player, sown.roundClaim.unplaced);
+      this.endRound();
     } else {
       this.currentPlayer = opponent(player);
       this.enterTurn();
@@ -209,55 +230,61 @@ export class OwareGame {
   }
 
   private resolvePosition(): void {
-    const { player1, player2 } = this.captured;
-    if (player1 >= WIN_SCORE || player2 >= WIN_SCORE) {
-      if (player1 === player2) this.finish("draw", undefined, "majority");
-      else this.finish("won", player1 > player2 ? "player1" : "player2", "majority");
-      return;
-    }
     this.enterTurn();
   }
 
   private enterTurn(): void {
     if (this.status !== "in_progress") return;
-    const key = positionKey(this.board, this.currentPlayer, this.captured);
+    const key = positionKey(this.board, this.currentPlayer, this.captured, this.territory);
     if (this.seen.has(key)) {
-      this.awardSide("player1");
-      this.awardSide("player2");
-      this.finishByScore("repetition");
+      this.awardTerritory("player1");
+      this.awardTerritory("player2");
+      this.endRound();
       return;
     }
-    if (legalMoves(this.board, this.currentPlayer).length === 0) {
-      this.endStarvation();
+    if (legalMoves(this.board, this.currentPlayer, this.territory).length === 0) {
+      this.awardTerritory("player1");
+      this.awardTerritory("player2");
+      this.endRound();
       return;
     }
     this.seen.add(key);
   }
 
-  private endStarvation(): void {
-    const mover = this.currentPlayer;
-    const other = opponent(mover);
-    if (sideSeedCount(this.board, other) === 0) {
-      this.awardSide(mover);
-    } else {
-      this.awardSide(other);
-    }
-    this.finishByScore("starvation");
+  private claimRemainder(player: Player, unplaced: number): void {
+    const left = this.board.reduce((sum, seeds) => sum + seeds, 0) + unplaced;
+    if (left > 0) this.captured = { ...this.captured, [player]: this.captured[player] + left };
+    this.board = Array.from({ length: PIT_COUNT }, () => 0);
   }
 
-  private awardSide(player: Player): void {
-    const seeds = sideSeedCount(this.board, player);
+  private awardTerritory(player: Player): void {
+    const seeds = territorySeedCount(this.board, this.territory, player);
     if (seeds === 0) return;
     this.captured = { ...this.captured, [player]: this.captured[player] + seeds };
     const board = this.board.slice();
-    for (const pit of sidePits(player)) board[pit] = 0;
+    for (const pit of ownedPits(this.territory, player)) board[pit] = 0;
     this.board = board;
   }
 
-  private finishByScore(reason: EndReason): void {
-    const { player1, player2 } = this.captured;
-    if (player1 === player2) this.finish("draw", undefined, reason);
-    else this.finish("won", player1 > player2 ? "player1" : "player2", reason);
+  private endRound(): void {
+    const territory = nextTerritory(this.territory, this.captured);
+    const round = this.round + 1;
+    const starter = roundStarter(round);
+    const key = openingKey(territory, starter);
+    const south = ownedPits(territory, "player1").length;
+    const north = ownedPits(territory, "player2").length;
+    if (south === 0 || north === 0) {
+      this.territory = territory;
+      this.finish("won", south === 0 ? "player2" : "player1", "territory");
+      return;
+    }
+    this.openings.add(key);
+    this.territory = territory;
+    this.board = initialBoard();
+    this.captured = { player1: 0, player2: 0 };
+    this.currentPlayer = starter;
+    this.round = round;
+    this.seen = new Set([positionKey(this.board, starter, this.captured, territory)]);
   }
 
   private finish(status: GameStatus, winner: Player | undefined, reason: EndReason): void {
