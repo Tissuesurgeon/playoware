@@ -154,6 +154,7 @@ export default function QueuePage() {
         onClick={() => {
           setSearching(false);
           setPending(false);
+          setAskName(false);
         }}
       >
         Cancel

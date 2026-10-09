@@ -392,7 +392,7 @@ function BoardModel(props: SceneBoardProps) {
   const capturePlayer: Player | null = capture ? (capture.toward === "bottom" ? viewer : opponent(viewer)) : null;
 
   return (
-    <group>
+    <group rotation={viewer === "player2" ? [0, Math.PI, 0] : [0, 0, 0]}>
       {props.preview || placement === "end" ? null : (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.62, 0]} receiveShadow>
           <planeGeometry args={[11, 6]} />

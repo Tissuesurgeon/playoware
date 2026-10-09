@@ -237,19 +237,30 @@ export async function sweepGrace(prisma: PrismaClient, now = new Date()) {
       OR: [{ player1DisconnectedAt: { lt: deadline } }, { player2DisconnectedAt: { lt: deadline } }],
     },
   });
-  for (const match of stale) {
-    const firstGone = await awayLongEnough(prisma, match, "player1", deadline);
-    const secondGone = await awayLongEnough(prisma, match, "player2", deadline);
-    if (!firstGone && !secondGone) continue;
-    if (firstGone && secondGone) {
-      await prisma.match.update({ where: { id: match.id }, data: { status: "abandoned", completedAt: now } });
-      await notify(prisma, match.id);
-      continue;
-    }
-    const side: Side = firstGone ? "player1" : "player2";
-    const since = (side === "player1" ? match.player1DisconnectedAt : match.player2DisconnectedAt) ?? now;
-    await forfeitDisconnected(prisma, match.id, side, `forfeit:${side}:${since.toISOString()}`);
+  for (const match of stale) await settleDisconnect(prisma, match, deadline, now);
+}
+
+async function settleDisconnect(
+  prisma: PrismaClient,
+  match: { id: string; player1DisconnectedAt: Date | null; player2DisconnectedAt: Date | null },
+  deadline: Date,
+  now: Date,
+) {
+  const firstGone = match.player1DisconnectedAt && match.player1DisconnectedAt < deadline
+    ? await awayLongEnough(prisma, match, "player1", deadline)
+    : false;
+  const secondGone = match.player2DisconnectedAt && match.player2DisconnectedAt < deadline
+    ? await awayLongEnough(prisma, match, "player2", deadline)
+    : false;
+  if (!firstGone && !secondGone) return;
+  if (firstGone && secondGone) {
+    await prisma.match.update({ where: { id: match.id }, data: { status: "abandoned", completedAt: now } });
+    await notify(prisma, match.id);
+    return;
   }
+  const side: Side = firstGone ? "player1" : "player2";
+  const since = (side === "player1" ? match.player1DisconnectedAt : match.player2DisconnectedAt) ?? now;
+  await forfeitDisconnected(prisma, match.id, side, `forfeit:${side}:${since.toISOString()}`);
 }
 
 export async function readMatch(prisma: PrismaClient, user: User, matchId: string) {
@@ -449,10 +460,14 @@ async function writeHistory(tx: Prisma.TransactionClient, matchId: string, game:
 async function sweepOne(prisma: PrismaClient, matchId: string) {
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match) return;
-  if (match.status === "waiting" && match.inviteExpiresAt && match.inviteExpiresAt.getTime() <= Date.now()) {
+  const now = new Date();
+  if (match.status === "waiting" && match.inviteExpiresAt && match.inviteExpiresAt.getTime() <= now.getTime()) {
     await prisma.match.update({ where: { id: match.id }, data: { status: "expired" } });
+    await notify(prisma, match.id);
+    return;
   }
-  if (match.status === "active") await sweepGrace(prisma);
+  if (match.status !== "active") return;
+  await settleDisconnect(prisma, match, new Date(now.getTime() - reconnectGraceMs()), now);
 }
 
 function resultFrom(loaded: Loaded, sequence: number, duplicate: boolean) {
