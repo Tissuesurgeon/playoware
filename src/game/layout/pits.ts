@@ -28,22 +28,23 @@ export function pitPosition(engineIndex: number): { x: number; z: number } {
   };
 }
 
-/** Owned houses from the viewer's left, near row first, then the far row. */
+/**
+ * Owned houses from the left of the shared south-facing board.
+ * A player's own row comes first, then houses they have captured on the other row.
+ */
 export function ownedHousesInView(viewer: Player, territory: readonly Player[]): number[] {
   const order =
     viewer === "player1"
       ? [0, 1, 2, 3, 4, 5, 11, 10, 9, 8, 7, 6]
-      : [6, 7, 8, 9, 10, 11, 5, 4, 3, 2, 1, 0];
+      : [11, 10, 9, 8, 7, 6, 0, 1, 2, 3, 4, 5];
   return order.filter((pit) => territory[pit] === viewer);
 }
 
-/** Same mapping after turning the board so `viewer` sits at the near side. */
-export function viewerPitPosition(engineIndex: number, viewer: Player): { x: number; z: number } {
-  const local = pitPosition(engineIndex);
-  if (viewer === "player1") return local;
-  return { x: -local.x, z: -local.z };
-}
-
-export function captureBowlPosition(player: Player): { x: number; y: number; z: number } {
+/**
+ * Side bowls sit beside the plank, which a wide screen can spare.
+ * On a phone they sit just past each player's row, so the six houses can use the width.
+ */
+export function captureBowlPosition(player: Player, placement: "side" | "end" = "side"): { x: number; y: number; z: number } {
+  if (placement === "end") return { x: 0, y: CAPTURE_Y, z: player === "player1" ? 2.15 : -2.15 };
   return { x: player === "player1" ? 4.85 : -4.85, y: CAPTURE_Y, z: 0 };
 }

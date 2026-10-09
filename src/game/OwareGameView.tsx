@@ -42,11 +42,11 @@ export function OwareGameView({
   ...scene
 }: SceneBoardProps) {
   const frame = preview
-    ? "relative h-[220px] sm:h-[260px] md:h-[min(40vh,340px)] md:min-h-[240px]"
-    : "relative h-[min(42svh,420px)] min-h-[210px] sm:h-[min(50vh,500px)] sm:min-h-[260px] lg:h-[min(56vh,540px)]";
+    ? "relative h-[220px] w-full sm:h-[260px] md:h-[min(40vh,340px)] md:min-h-[240px]"
+    : "relative h-[min(48svh,420px)] min-h-[320px] w-full sm:h-[min(50vh,500px)] sm:min-h-[260px] lg:h-[min(56vh,540px)]";
   return (
     <div>
-      <div className={`${frame} w-full overflow-hidden rounded-[28px] bg-cream`}>
+      <div className={`${frame} overflow-hidden rounded-[28px] bg-cream`}>
         <div className="absolute inset-0" onPointerDown={() => scene.onAccelerate?.()} role="presentation">
           <BoardBoundary>
             <OwareScene

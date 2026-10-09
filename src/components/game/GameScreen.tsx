@@ -318,11 +318,11 @@ export function GameScreen({ id }: { id: string }) {
   const speedLabel = settings.animation === "fast" ? "Fast" : settings.animation === "instant" ? "Instant" : "Normal";
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:gap-4 sm:px-4 sm:py-4">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <Link
           href="/play"
-          className="text-sm font-semibold text-ink-soft"
+          className="inline-flex min-h-11 items-center text-sm font-semibold text-ink-soft"
           onClick={(event) => {
             if (state.status === "in_progress" && !window.confirm("Leave this game? You can resume it from home.")) {
               event.preventDefault();
@@ -335,7 +335,7 @@ export function GameScreen({ id }: { id: string }) {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            className="text-sm font-semibold text-ink-soft"
+            className="inline-flex min-h-11 items-center text-sm font-semibold text-ink-soft"
             onClick={() => {
               const order = ["normal", "fast", "instant"] as const;
               const next = order[(order.indexOf(settings.animation) + 1) % order.length] ?? "normal";
@@ -346,7 +346,7 @@ export function GameScreen({ id }: { id: string }) {
           </button>
           <button
             type="button"
-            className="text-sm font-semibold text-ink-soft"
+            className="inline-flex min-h-11 items-center text-sm font-semibold text-ink-soft"
             aria-pressed={settings.sound}
             onClick={() => update({ ...settings, sound: !settings.sound })}
           >
@@ -359,6 +359,9 @@ export function GameScreen({ id }: { id: string }) {
       </p>
       <PlayerBar
         name={names[topPlayer]}
+        player={topPlayer}
+        houses={owned[topPlayer]}
+        seeds={captured[topPlayer]}
         clockMs={clocks[topPlayer]}
         active={!playback.playing && !over && state.currentPlayer === topPlayer}
         thinking={thinking && topPlayer === "player2"}
@@ -395,10 +398,15 @@ export function GameScreen({ id }: { id: string }) {
         onAccelerate={playback.playing ? playback.accelerate : undefined}
         disabled={playback.playing || thinking || over}
       />
-      <PlayerBar name={names[viewer]} clockMs={clocks[viewer]} active={!playback.playing && !over && state.currentPlayer === viewer} />
-      <p className="text-center text-sm text-ink-soft tabular-nums">
-        Round {state.round} · {owned.player1} — {owned.player2} houses
-      </p>
+      <PlayerBar
+        name={names[viewer]}
+        player={viewer}
+        houses={owned[viewer]}
+        seeds={captured[viewer]}
+        clockMs={clocks[viewer]}
+        active={!playback.playing && !over && state.currentPlayer === viewer}
+      />
+      <p className="text-center text-sm text-ink-soft tabular-nums">Round {state.round}</p>
       <div className="flex justify-center gap-2">
         <Button
           variant="secondary"
@@ -449,31 +457,8 @@ export function GameScreen({ id }: { id: string }) {
         <p className={`text-center text-sm ${notice.startsWith("All six houses") ? "text-ink-soft" : "text-bad"}`}>{notice}</p>
       ) : null}
       {thinking ? <p className="text-center text-sm font-semibold text-ink-soft">AI is thinking…</p> : null}
-      <section className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-3xl border border-line bg-paper p-5">
-          <h2 className="text-xs font-semibold tracking-wide text-ink-soft uppercase">Captured</h2>
-          <dl className="mt-3 space-y-2 text-sm">
-            <div className="flex justify-between gap-4">
-              <dt>{names.player1}</dt>
-              <dd className="text-right font-semibold tabular-nums">
-                {captured.player1} {captured.player1 === 1 ? "seed" : "seeds"}
-                <span className="mt-0.5 block text-xs font-normal text-ink-soft">
-                  {owned.player1} {owned.player1 === 1 ? "house" : "houses"}
-                </span>
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt>{names.player2}</dt>
-              <dd className="text-right font-semibold tabular-nums">
-                {captured.player2} {captured.player2 === 1 ? "seed" : "seeds"}
-                <span className="mt-0.5 block text-xs font-normal text-ink-soft">
-                  {owned.player2} {owned.player2 === 1 ? "house" : "houses"}
-                </span>
-              </dd>
-            </div>
-          </dl>
-        </div>
-        <div className="rounded-3xl border border-line bg-paper p-5">
+      <section>
+        <div className="rounded-3xl border border-line bg-paper p-4 sm:p-5">
           <h2 className="text-xs font-semibold tracking-wide text-ink-soft uppercase">Game</h2>
           <ol className="mt-3 max-h-48 space-y-1 overflow-auto text-sm">
             {replay.applied.length === 0 ? <li className="text-ink-soft">No moves yet.</li> : null}

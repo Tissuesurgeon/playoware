@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Source_Sans_3 } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { Shell } from "@/components/navigation/Shell";
 import { SettingsProvider } from "@/components/settings/SettingsProvider";
 import "./globals.css";
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <SettingsProvider>
           <Shell>{children}</Shell>
         </SettingsProvider>
+        <Analytics />
       </body>
     </html>
   );

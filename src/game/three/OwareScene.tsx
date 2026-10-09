@@ -15,7 +15,7 @@ import {
   type Mesh,
   type PerspectiveCamera as PerspectiveCameraImpl,
 } from "three";
-import { initialTerritory, opponent, ownsPit, relativePitNumber, type Player } from "@/engine/oware";
+import { initialTerritory, opponent, relativePitNumber, type Player } from "@/engine/oware";
 import { dropEase, easeInOut, HandMotion } from "@/game/animation/motion";
 import { fitCamera } from "@/game/layout/camera";
 import { captureBowlPosition, pitPosition } from "@/game/layout/pits";
@@ -30,12 +30,21 @@ const ringGeometry = new TorusGeometry(0.4, 0.026, 8, 28);
 const wood = new MeshStandardMaterial({ color: "#6b3f28", roughness: 0.78, metalness: 0.03 });
 const pitMaterial = new MeshStandardMaterial({ color: "#1a0e09", roughness: 0.94, metalness: 0, side: DoubleSide });
 const seedMaterial = new MeshStandardMaterial({ color: "#f4e7cb", roughness: 0.46, metalness: 0.02 });
-const bowlMaterial = new MeshStandardMaterial({ color: "#4a2c1c", roughness: 0.84 });
-const ringIdle = new MeshStandardMaterial({ color: "#5a3824", roughness: 0.8 });
-const ringOwned = new MeshStandardMaterial({ color: "#2c6b4a", roughness: 0.48, emissive: "#1f4d36", emissiveIntensity: 0.35 });
-const ringLegal = new MeshStandardMaterial({ color: "#e7b15a", roughness: 0.42, emissive: "#8a5a22", emissiveIntensity: 0.35 });
-const ringHot = new MeshStandardMaterial({ color: "#f3d7a1", roughness: 0.35, emissive: "#e7b15a", emissiveIntensity: 0.55 });
+const bowlSouth = new MeshStandardMaterial({ color: "#2c6b4a", roughness: 0.72 });
+const bowlNorth = new MeshStandardMaterial({ color: "#c4622d", roughness: 0.72 });
+const ringSouth = new MeshStandardMaterial({ color: "#2c6b4a", roughness: 0.48, emissive: "#1f4d36", emissiveIntensity: 0.35 });
+const ringSouthLegal = new MeshStandardMaterial({ color: "#2c6b4a", roughness: 0.38, emissive: "#2c6b4a", emissiveIntensity: 0.9 });
+const ringSouthHot = new MeshStandardMaterial({ color: "#b7e0cb", roughness: 0.35, emissive: "#2c6b4a", emissiveIntensity: 0.55 });
+const ringNorth = new MeshStandardMaterial({ color: "#c4622d", roughness: 0.48, emissive: "#9a4a1f", emissiveIntensity: 0.35 });
+const ringNorthLegal = new MeshStandardMaterial({ color: "#c4622d", roughness: 0.38, emissive: "#c4622d", emissiveIntensity: 0.9 });
+const ringNorthHot = new MeshStandardMaterial({ color: "#f3c2a4", roughness: 0.35, emissive: "#c4622d", emissiveIntensity: 0.55 });
 const ringForfeit = new MeshStandardMaterial({ color: "#8d3b32", roughness: 0.6, emissive: "#5a241e", emissiveIntensity: 0.2 });
+
+function ownerRing(owner: Player, hot: boolean, legal: boolean, forfeit: boolean) {
+  if (forfeit) return ringForfeit;
+  if (owner === "player1") return hot ? ringSouthHot : legal ? ringSouthLegal : ringSouth;
+  return hot ? ringNorthHot : legal ? ringNorthLegal : ringNorth;
+}
 const mouthMaterial = new MeshStandardMaterial({ transparent: true, opacity: 0.02, depthWrite: false, color: "#000000" });
 
 function FrameCamera({ preview = false }: { preview?: boolean }) {
@@ -110,8 +119,7 @@ function SeedMesh({
 function Pit({
   index,
   count,
-  viewer,
-  owned,
+  owner,
   legal,
   hot,
   forfeit,
@@ -122,8 +130,7 @@ function Pit({
 }: {
   index: number;
   count: number;
-  viewer: Player;
-  owned: boolean;
+  owner: Player;
   legal: boolean;
   hot: boolean;
   forfeit: boolean;
@@ -134,10 +141,10 @@ function Pit({
 }) {
   const place = pitPosition(index);
   const [hovered, setHovered] = useState(false);
-  const owner = ownsPit(viewer, index) ? viewer : opponent(viewer);
-  const number = relativePitNumber(owner, index);
+  const side: Player = index < 6 ? "player1" : "player2";
+  const number = relativePitNumber(side, index);
   const outward = index < 6 ? 0.58 : -0.58;
-  const ring = hot ? ringHot : forfeit ? ringForfeit : legal ? ringLegal : owned ? ringOwned : ringIdle;
+  const ring = ownerRing(owner, hot, legal, forfeit);
 
   function hover(event: ThreeEvent<PointerEvent>, active: boolean) {
     event.stopPropagation();
@@ -182,7 +189,7 @@ function Pit({
           if (legal) onPlay?.(index);
         }}
       >
-        <circleGeometry args={[0.46, 24]} />
+        <circleGeometry args={[0.56, 28]} />
       </mesh>
       {Array.from({ length: count }, (_, seedIndex) => (
         <SeedMesh
@@ -196,7 +203,7 @@ function Pit({
         />
       ))}
       <Html position={[0, 0.02, outward]} center zIndexRange={[2, 0]} style={{ pointerEvents: "none" }}>
-        <span className={`text-[11px] font-semibold ${owned ? "text-paper" : "text-cream/70"}`}>{number}</span>
+        <span className="text-[11px] font-semibold text-paper">{number}</span>
       </Html>
     </group>
   );
@@ -249,10 +256,12 @@ function CaptureFlight({
   capture,
   duration,
   reduced,
+  placement,
 }: {
   capture: { pit: number; count: number; player: Player };
   duration: number;
   reduced: boolean;
+  placement: "side" | "end";
 }) {
   const ref = useRef<Group>(null);
   const started = useRef(0);
@@ -266,7 +275,7 @@ function CaptureFlight({
     if (!group) return;
     const t = reduced ? 1 : easeInOut(Math.min(1, (performance.now() - started.current) / Math.max(duration, 1)));
     const from = pitPosition(capture.pit);
-    const to = captureBowlPosition(capture.player);
+    const to = captureBowlPosition(capture.player, placement);
     group.position.set(from.x + (to.x - from.x) * t, 0.28 + Math.sin(t * Math.PI) * (reduced ? 0 : 0.42), from.z + (to.z - from.z) * t);
   });
 
@@ -290,12 +299,12 @@ function CaptureFlight({
   );
 }
 
-function Bowl({ player, count }: { player: Player; count: number }) {
-  const place = captureBowlPosition(player);
+function Bowl({ player, count, placement }: { player: Player; count: number; placement: "side" | "end" }) {
+  const place = captureBowlPosition(player, placement);
   const shown = Math.min(8, count);
   return (
     <group position={[place.x, 0, place.z]}>
-      <mesh material={bowlMaterial} position={[0, -0.04, 0]} castShadow receiveShadow>
+      <mesh material={player === "player1" ? bowlSouth : bowlNorth} position={[0, -0.04, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[0.42, 0.34, 0.1, 24]} />
       </mesh>
       {Array.from({ length: shown }, (_, index) => {
@@ -315,10 +324,10 @@ function Bowl({ player, count }: { player: Player; count: number }) {
   );
 }
 
-function BoardShell() {
+function BoardShell({ compact }: { compact: boolean }) {
   const geometry = useMemo(() => {
-    const width = 8.35;
-    const depth = 3.9;
+    const width = compact ? 7.2 : 8.35;
+    const depth = compact ? 3.5 : 3.9;
     const radius = 0.28;
     const shape = new Shape();
     const left = -width / 2;
@@ -353,7 +362,7 @@ function BoardShell() {
     const top = board.boundingBox?.max.y ?? 0;
     board.translate(0, -top + 0.01, 0);
     return board;
-  }, []);
+  }, [compact]);
 
   return <mesh geometry={geometry} material={wood} castShadow receiveShadow raycast={() => undefined} />;
 }
@@ -377,25 +386,26 @@ function BoardModel(props: SceneBoardProps) {
     onPlay,
     disabled = false,
   } = props;
+  const width = useThree((state) => state.size.width);
+  const placement = !props.preview && width < 520 ? "end" : "side";
   const dropMs = Math.max(160, Math.round(travelMs * 0.9));
   const capturePlayer: Player | null = capture ? (capture.toward === "bottom" ? viewer : opponent(viewer)) : null;
 
   return (
-    <group rotation={[0, viewer === "player2" ? Math.PI : 0, 0]}>
-      {props.preview ? null : (
+    <group>
+      {props.preview || placement === "end" ? null : (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.62, 0]} receiveShadow>
           <planeGeometry args={[11, 6]} />
           <meshStandardMaterial color="#f3eee6" />
         </mesh>
       )}
-      <BoardShell />
+      <BoardShell compact={placement === "end"} />
       {board.map((count, index) => (
         <Pit
           key={index}
           index={index}
           count={count ?? 0}
-          viewer={viewer}
-          owned={territory[index] === viewer}
+          owner={territory[index] ?? "player1"}
           legal={!disabled && legalPits.includes(index)}
           hot={selectedPit === index || lastPit === index}
           forfeit={forfeitedPits.includes(index)}
@@ -405,11 +415,16 @@ function BoardModel(props: SceneBoardProps) {
           onPlay={onPlay}
         />
       ))}
-      <Bowl player="player1" count={captured.player1} />
-      <Bowl player="player2" count={captured.player2} />
+      <Bowl player="player1" count={captured.player1} placement={placement} />
+      <Bowl player="player2" count={captured.player2} placement={placement} />
       {hand && hand.count > 0 ? <PlayerHand hand={hand} travelMs={travelMs} reduced={reduced} /> : null}
       {capture && capturePlayer ? (
-        <CaptureFlight capture={{ pit: capture.pit, count: capture.count, player: capturePlayer }} duration={captureMs} reduced={reduced} />
+        <CaptureFlight
+          capture={{ pit: capture.pit, count: capture.count, player: capturePlayer }}
+          duration={captureMs}
+          reduced={reduced}
+          placement={placement}
+        />
       ) : null}
     </group>
   );

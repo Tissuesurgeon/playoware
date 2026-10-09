@@ -268,15 +268,15 @@ export function OnlineMatch({ id }: { id: string }) {
   const invite = link ? `${window.location.origin}${link}` : null;
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:gap-4 sm:px-4 sm:py-4">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <Link href="/play" className="text-sm font-semibold text-ink-soft">
+        <Link href="/play" className="inline-flex min-h-11 items-center text-sm font-semibold text-ink-soft">
           ← Back
         </Link>
         <p className="font-serif text-xl">{waiting ? "Waiting" : "Oware"}</p>
         <button
           type="button"
-          className="text-sm font-semibold text-ink-soft"
+          className="inline-flex min-h-11 items-center text-sm font-semibold text-ink-soft"
           onClick={() => {
             const order = ["normal", "fast", "instant"] as const;
             const next = order[(order.indexOf(settings.animation) + 1) % order.length] ?? "normal";
@@ -326,6 +326,9 @@ export function OnlineMatch({ id }: { id: string }) {
       ) : null}
       <PlayerBar
         name={names[opponentSide]}
+        player={opponentSide}
+        houses={houses[opponentSide]}
+        seeds={captured[opponentSide]}
         active={!playback.playing && snapshot.yourTurn === false && !over && !waiting}
         status={waiting ? "Not here yet" : undefined}
       />
@@ -355,25 +358,26 @@ export function OnlineMatch({ id }: { id: string }) {
         onAccelerate={playback.playing ? playback.accelerate : undefined}
         disabled={playback.playing || over || waiting || !snapshot.yourTurn}
       />
-      <PlayerBar name={names[you]} active={snapshot.yourTurn && !playback.playing && !over} status={snapshot.yourTurn && !over ? "Your turn" : undefined} />
+      <PlayerBar
+        name={names[you]}
+        player={you}
+        houses={houses[you]}
+        seeds={captured[you]}
+        active={snapshot.yourTurn && !playback.playing && !over}
+        status={snapshot.yourTurn && !over ? "Your turn" : undefined}
+      />
       {error ? <p className="text-center text-sm text-bad">{error}</p> : null}
       {!waiting && !over ? (
-        <div className="flex justify-center gap-4 text-sm font-semibold">
-          <button type="button" className="text-ink-soft" onClick={() => void sendAction(`/api/matches/${id}/draw`, {})}>
+        <div className="flex justify-center gap-3">
+          <Button variant="secondary" onClick={() => void sendAction(`/api/matches/${id}/draw`, {})}>
             {snapshot.drawOffer && snapshot.drawOffer !== you ? "Accept draw" : "Offer draw"}
-          </button>
-          <button type="button" className="text-bad" onClick={() => void sendAction(`/api/matches/${id}/resign`, {})}>
+          </Button>
+          <Button variant="danger" onClick={() => void sendAction(`/api/matches/${id}/resign`, {})}>
             Resign
-          </button>
+          </Button>
         </div>
       ) : null}
-      <p className="text-center text-sm text-ink-soft tabular-nums">
-        Round {snapshot.round ?? 1}
-        <span className="mx-2">·</span>
-        {captured.player1} — {captured.player2} seeds
-        <span className="mx-2">·</span>
-        {houses.player1} — {houses.player2} houses
-      </p>
+      <p className="text-center text-sm text-ink-soft tabular-nums">Round {snapshot.round ?? 1}</p>
       {snapshot.status === "completed" ? (
         <ResultDialog
           names={names}

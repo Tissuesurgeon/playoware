@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { OwareGame, type AppliedMove } from "@/engine/oware";
 import { buildMoveAnimation } from "@/lib/animation/sequence";
 import { HandMotion } from "@/game/animation/motion";
-import { pitPosition, viewerPitPosition } from "@/game/layout/pits";
+import { ownedHousesInView, pitPosition } from "@/game/layout/pits";
 import { PIT_CLUSTER_RADIUS, getSeedPosition } from "@/game/layout/seeds";
 
 function drops(events: ReturnType<typeof buildMoveAnimation>) {
@@ -21,11 +21,14 @@ describe("pit mapping", () => {
     expect(far.every((place) => place.z < 0)).toBe(true);
   });
 
-  it("turns the board so the viewer’s leftmost pit is near and on the left", () => {
-    const ownLeft = viewerPitPosition(6, "player2");
-    const ownRight = viewerPitPosition(11, "player2");
-    expect(ownLeft.z).toBeGreaterThan(0);
-    expect(ownLeft.x).toBeLessThan(ownRight.x);
+  it("lists owned houses from the left of the shared board", () => {
+    const territory = Array.from({ length: 12 }, (_, pit) => (pit < 6 ? "player1" : "player2")) as Array<
+      "player1" | "player2"
+    >;
+    territory[0] = "player2";
+    territory[11] = "player1";
+    expect(ownedHousesInView("player1", territory)).toEqual([1, 2, 3, 4, 5, 11]);
+    expect(ownedHousesInView("player2", territory)).toEqual([10, 9, 8, 7, 6, 0]);
   });
 
   it("gives every engine pit its own place", () => {
