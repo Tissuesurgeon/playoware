@@ -1,22 +1,34 @@
 import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth/user";
 import { getPrisma } from "@/lib/db/client";
+import { ensureMigrations } from "@/lib/db/migrate";
+import { databaseFailureMessage } from "@/lib/db/url";
 import { MatchError } from "@/server/matches";
 import { allow } from "@/server/limits";
 
+let databaseError = "Database unavailable.";
+
 export async function context() {
   const prisma = getPrisma();
-  if (!prisma) return { prisma: null, user: null };
+  if (!prisma) {
+    databaseError = "Database unavailable.";
+    return { prisma: null, user: null };
+  }
   try {
+    await ensureMigrations();
     const user = await getOrCreateUser();
+    databaseError = "Database unavailable.";
     return { prisma, user };
-  } catch {
+  } catch (error) {
+    databaseError = databaseFailureMessage(error);
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+    console.error("database request failed", code || databaseError);
     return { prisma: null, user: null };
   }
 }
 
 export function unavailable() {
-  return NextResponse.json({ error: "Database unavailable." }, { status: 503 });
+  return NextResponse.json({ error: databaseError }, { status: 503 });
 }
 
 export function tooMany() {

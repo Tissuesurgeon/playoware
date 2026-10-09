@@ -46,7 +46,7 @@ export default function PlayFriendPage() {
           setError(null);
           void saveDisplayName(name).then((saved) => {
             if (!saved.persisted) {
-              setError("The name could not be saved. Check the connection and try again.");
+              setError(saved.error ?? "The name could not be saved. Check the connection and try again.");
               setPending(false);
               return;
             }

@@ -24,6 +24,7 @@ export default function QueuePage() {
     let stopped = false;
     let socket: WebSocket | null = null;
     let timer = 0;
+    let poll = 0;
 
     function connect() {
       if (stopped) return;
@@ -42,6 +43,33 @@ export default function QueuePage() {
       };
     }
 
+    async function look() {
+      if (stopped) return;
+      try {
+        const response = await fetch("/api/matches/queue", { cache: "no-store" });
+        const body = (await response.json()) as { status?: string; matchId?: string | null; error?: string };
+        if (stopped) return;
+        if (!response.ok) {
+          setError(body.error ?? "Matchmaking is unavailable.");
+          setSearching(false);
+          return;
+        }
+        if (body.matchId) {
+          router.push(`/match/${body.matchId}`);
+          return;
+        }
+        if (body.status === "idle") {
+          setError("The search ended. Try again.");
+          setSearching(false);
+        }
+      } catch {
+        if (!stopped) {
+          setError("Matchmaking is unavailable.");
+          setSearching(false);
+        }
+      }
+    }
+
     void fetch("/api/matches/queue", { method: "POST" })
       .then(async (response) => {
         const body = (await response.json()) as { matchId?: string | null; error?: string };
@@ -56,6 +84,8 @@ export default function QueuePage() {
           return;
         }
         connect();
+        void look();
+        poll = window.setInterval(() => void look(), 2000);
       })
       .catch(() => {
         if (!stopped) {
@@ -66,6 +96,7 @@ export default function QueuePage() {
     return () => {
       stopped = true;
       window.clearTimeout(timer);
+      window.clearInterval(poll);
       socket?.close();
       void fetch("/api/matches/queue", { method: "DELETE" });
     };
@@ -99,7 +130,7 @@ export default function QueuePage() {
             setError(null);
             void saveDisplayName(name).then((saved) => {
               if (!saved.persisted) {
-                setError("The name could not be saved. Check the connection and try again.");
+                setError(saved.error ?? "The name could not be saved. Check the connection and try again.");
                 setPending(false);
                 return;
               }

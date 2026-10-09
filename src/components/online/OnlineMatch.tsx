@@ -35,6 +35,7 @@ export function OnlineMatch({ id }: { id: string }) {
   const inviteRef = useRef<HTMLParagraphElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [socketState, setSocketState] = useState<"connecting" | "open" | "closed">("connecting");
+  const [pollOk, setPollOk] = useState(true);
   const [seenOpponent, setSeenOpponent] = useState(false);
   const versionRef = useRef(0);
   const animatingRef = useRef(false);
@@ -126,6 +127,22 @@ export function OnlineMatch({ id }: { id: string }) {
       if (message.type === "error") setError(message.error);
     }
 
+    function receive(next: MatchSnapshot) {
+      const opponentSide = next.you === "player1" ? "player2" : "player1";
+      const opponentConnected = opponentSide === "player1" ? next.player1Connected : next.player2Connected;
+      if (opponentConnected) setSeenOpponent(true);
+      if (next.version === versionRef.current) {
+        snapshotRef.current = next;
+        setSnapshot(next);
+        return;
+      }
+      if (animatingRef.current) {
+        pendingRef.current = next;
+        return;
+      }
+      applyRef.current(next);
+    }
+
     function connect() {
       if (stopped) return;
       setSocketState("connecting");
@@ -147,22 +164,40 @@ export function OnlineMatch({ id }: { id: string }) {
       };
     }
 
-    connect();
-    void fetch(`/api/matches/${id}`)
-      .then(async (response) => {
+    async function poll() {
+      try {
+        const response = await fetch(`/api/matches/${id}`, { cache: "no-store" });
         const body = (await response.json()) as MatchSnapshot & { error?: string };
+        if (stopped) return;
         if (!response.ok) {
-          setError(body.error ?? "This match is not available.");
+          setPollOk(false);
+          if (!snapshotRef.current) setError(body.error ?? "This match is not available.");
           return;
         }
-        if (!animatingRef.current) applyRef.current(body);
-      })
-      .catch(() => setError("The server could not be reached."));
+        setPollOk(true);
+        if (!snapshotRef.current) setError(null);
+        receive(body);
+      } catch {
+        if (!stopped && !snapshotRef.current) setError("The server could not be reached.");
+        if (!stopped) setPollOk(false);
+      }
+    }
+
+    connect();
+    void poll();
+    const pollTimer = window.setInterval(() => void poll(), 2000);
 
     return () => {
       stopped = true;
       window.clearTimeout(timer);
+      window.clearInterval(pollTimer);
       socket?.close();
+      void fetch(`/api/matches/${id}/presence`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ connected: false }),
+        keepalive: true,
+      });
     };
   }, [id]);
 
@@ -291,7 +326,7 @@ export function OnlineMatch({ id }: { id: string }) {
           </>
         )}
       </div>
-      {socketState !== "open" ? <p className="text-center text-sm font-semibold text-ink-soft">Reconnecting…</p> : null}
+      {socketState === "closed" && !pollOk ? <p className="text-center text-sm font-semibold text-ink-soft">Reconnecting…</p> : null}
       {seenOpponent && !opponentConnected && snapshot.status === "active" ? (
         <p className="text-center text-sm font-semibold text-ink-soft">Opponent disconnected. The game is held open.</p>
       ) : null}

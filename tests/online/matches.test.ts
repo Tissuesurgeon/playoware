@@ -6,6 +6,7 @@ import {
   createFriendRoom,
   joinFriendRoom,
   joinQueue,
+  queueState,
   MatchError,
   markPresence,
   readMatch,
@@ -13,6 +14,7 @@ import {
   submitMove,
   sweepGrace,
 } from "@/server/matches";
+import { ensureMigrations } from "@/lib/db/migrate";
 import { createSession, userFromToken } from "@/server/session";
 import { startGame } from "@/lib/start-game";
 
@@ -55,6 +57,17 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
+describe("migrations", () => {
+  it("does not reapply migrations that are already recorded", async () => {
+    await ensureMigrations();
+    await ensureMigrations();
+    const rows = await prisma.$queryRaw<Array<{ migration_name: string }>>`
+      SELECT migration_name FROM "_prisma_migrations" ORDER BY migration_name
+    `;
+    expect(rows.map((row) => row.migration_name)).toEqual(["20261008015654_init", "20261008235200_online"]);
+  });
+});
+
 describe("sessions", () => {
   it("does not treat a user id as a session token", async () => {
     const user = await guest("Ada");
@@ -65,6 +78,18 @@ describe("sessions", () => {
 });
 
 describe("queue", () => {
+  it("reports a search until the second player is paired", async () => {
+    const first = await guest("Ada");
+    const second = await guest("Kwame");
+    expect(await queueState(prisma, first)).toEqual({ status: "idle", matchId: null });
+    await joinQueue(prisma, first);
+    expect(await queueState(prisma, first)).toEqual({ status: "searching", matchId: null });
+    const paired = await joinQueue(prisma, second);
+    expect(paired.status).toBe("matched");
+    expect(await queueState(prisma, first)).toEqual({ status: "matched", matchId: paired.matchId });
+    expect(await queueState(prisma, second)).toEqual({ status: "matched", matchId: paired.matchId });
+  });
+
   it("pairs two different players and keeps one row per player", async () => {
     const first = await guest("Ada");
     const second = await guest("Kwame");

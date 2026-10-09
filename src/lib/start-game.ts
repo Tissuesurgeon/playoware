@@ -19,9 +19,9 @@ export async function loadName() {
   }
 }
 
-export async function saveDisplayName(raw: string): Promise<{ name: string; persisted: boolean }> {
+export async function saveDisplayName(raw: string): Promise<{ name: string; persisted: boolean; error?: string }> {
   const name = raw.trim().slice(0, 24);
-  if (!name) return { name: "", persisted: false };
+  if (!name) return { name: "", persisted: false, error: "Name is required." };
   writeLocalName(name);
   try {
     const response = await fetch("/api/me", {
@@ -29,11 +29,14 @@ export async function saveDisplayName(raw: string): Promise<{ name: string; pers
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ displayName: name }),
     });
-    if (!response.ok) return { name, persisted: false };
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      return { name, persisted: false, error: body?.error ?? "The name could not be saved. Check the connection and try again." };
+    }
     const body = (await response.json()) as { displayName?: string };
     return { name: body.displayName || name, persisted: true };
   } catch {
-    return { name, persisted: false };
+    return { name, persisted: false, error: "The name could not be saved. Check the connection and try again." };
   }
 }
 

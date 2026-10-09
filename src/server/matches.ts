@@ -265,6 +265,15 @@ export async function activeMatchId(prisma: PrismaClient, userId: string) {
   return match?.id ?? null;
 }
 
+export async function queueState(prisma: PrismaClient, user: User) {
+  const existing = await openMatch(prisma, user.id);
+  if (existing) return { status: "matched" as const, matchId: existing.id };
+  const entry = await prisma.queueEntry.findUnique({ where: { userId: user.id } });
+  const fresh = entry?.status === "waiting" && entry.createdAt.getTime() > Date.now() - queueTtlMs();
+  if (fresh) return { status: "searching" as const, matchId: null };
+  return { status: "idle" as const, matchId: null };
+}
+
 export async function latestView(prisma: PrismaClient, matchId: string) {
   const loaded = await load(prisma, matchId);
   if (!loaded) return null;
@@ -564,7 +573,18 @@ async function lockMatch(tx: Prisma.TransactionClient, matchId: string) {
 }
 
 async function notify(db: Db, matchId: string) {
-  await db.$executeRaw`SELECT pg_notify('playoware_match', ${matchId})`;
+  try {
+    await db.$executeRaw`SAVEPOINT playoware_notify`;
+  } catch {
+    await db.$executeRaw`SELECT pg_notify('playoware_match', ${matchId})`.catch(() => undefined);
+    return;
+  }
+  try {
+    await db.$executeRaw`SELECT pg_notify('playoware_match', ${matchId})`;
+    await db.$executeRaw`RELEASE SAVEPOINT playoware_notify`;
+  } catch {
+    await db.$executeRaw`ROLLBACK TO SAVEPOINT playoware_notify`.catch(() => undefined);
+  }
 }
 
 function assertClientMoveId(value: string) {
