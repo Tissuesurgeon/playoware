@@ -9,6 +9,7 @@ import { ResultDialog } from "@/components/game/ResultDialog";
 import { useSettings } from "@/components/settings/SettingsProvider";
 import { Button } from "@/components/ui/Button";
 import { initialBoard, initialTerritory, opponent, type AppliedMove, type CapturedSeeds, type GameState, type Player } from "@/engine/oware";
+import { latestSow } from "@/lib/animation/incoming";
 import { OwareGameView } from "@/game/OwareGameView";
 import { ownedHousesInView } from "@/game/layout/pits";
 import { socketUrl } from "@/realtime/browser";
@@ -41,6 +42,7 @@ export function OnlineMatch({ id }: { id: string }) {
   const animatingRef = useRef(false);
   const pendingRef = useRef<MatchSnapshot | null>(null);
   const snapshotRef = useRef<MatchSnapshot | null>(null);
+  const playRef = useRef<(next: MatchSnapshot) => void>(() => undefined);
   const playback = useMovePlayback({
     speed: settings.animation,
     reduced: reducedMotion,
@@ -49,7 +51,7 @@ export function OnlineMatch({ id }: { id: string }) {
       animatingRef.current = false;
       const pending = pendingRef.current;
       pendingRef.current = null;
-      if (pending && pending.version !== versionRef.current) applyRef.current(pending);
+      if (pending && pending.version !== versionRef.current) playRef.current(pending);
     },
   });
   const startRef = useRef(playback.start);
@@ -65,6 +67,43 @@ export function OnlineMatch({ id }: { id: string }) {
     setSnapshot(next);
     stopRef.current();
   }
+
+  function playIncoming(next: MatchSnapshot) {
+    const previous = snapshotRef.current;
+    const opponentSide = next.you === "player1" ? "player2" : "player1";
+    const opponentConnected = opponentSide === "player1" ? next.player1Connected : next.player2Connected;
+    if (opponentConnected) setSeenOpponent(true);
+    if (!previous || next.version === versionRef.current) {
+      versionRef.current = next.version;
+      snapshotRef.current = next;
+      setSnapshot(next);
+      if (animatingRef.current) {
+        landRef.current({ board: next.board, captured: next.captured, currentPlayer: next.currentPlayer });
+      }
+      return;
+    }
+    if (animatingRef.current) {
+      pendingRef.current = next;
+      return;
+    }
+    const unseen = next.pits.length - previous.pits.length;
+    const sow = unseen > 0 ? latestSow(next.pits) : null;
+    if (!sow) {
+      applySnapshot(next);
+      return;
+    }
+    versionRef.current = next.version;
+    snapshotRef.current = next;
+    setSnapshot(next);
+    animatingRef.current = true;
+    startRef.current(sow.beforeBoard, sow.beforeCaptured, sow.applied, next.status === "completed", {
+      board: next.board,
+      captured: next.captured,
+      currentPlayer: next.currentPlayer,
+    });
+  }
+  playRef.current = playIncoming;
+
   const applyRef = useRef(applySnapshot);
   applyRef.current = applySnapshot;
 
@@ -96,24 +135,9 @@ export function OnlineMatch({ id }: { id: string }) {
 
     function handle(message: ServerMessage) {
       if (message.type === "snapshot" || message.type === "gameOver") {
-        const next = message.type === "snapshot" ? message.snapshot : message.snapshot;
+        const next = message.snapshot;
         if (next.matchId !== id) return;
-        const opponentSide = next.you === "player1" ? "player2" : "player1";
-        const opponentConnected = opponentSide === "player1" ? next.player1Connected : next.player2Connected;
-        if (opponentConnected) setSeenOpponent(true);
-        if (next.version === versionRef.current) {
-          snapshotRef.current = next;
-          setSnapshot(next);
-          if (animatingRef.current) {
-            landRef.current({ board: next.board, captured: next.captured, currentPlayer: next.currentPlayer });
-          }
-          return;
-        }
-        if (animatingRef.current) {
-          pendingRef.current = next;
-          return;
-        }
-        applyRef.current(next);
+        playRef.current(next);
         return;
       }
       if (message.type === "moveAccepted" && message.matchId === id) {
@@ -128,19 +152,7 @@ export function OnlineMatch({ id }: { id: string }) {
     }
 
     function receive(next: MatchSnapshot) {
-      const opponentSide = next.you === "player1" ? "player2" : "player1";
-      const opponentConnected = opponentSide === "player1" ? next.player1Connected : next.player2Connected;
-      if (opponentConnected) setSeenOpponent(true);
-      if (next.version === versionRef.current) {
-        snapshotRef.current = next;
-        setSnapshot(next);
-        return;
-      }
-      if (animatingRef.current) {
-        pendingRef.current = next;
-        return;
-      }
-      applyRef.current(next);
+      playRef.current(next);
     }
 
     function connect() {
