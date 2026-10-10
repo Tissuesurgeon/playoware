@@ -50,11 +50,13 @@ npx prisma migrate deploy
 npm run dev
 ```
 
-Postgres is published on port **5434**. The site is at [http://127.0.0.1:3000](http://127.0.0.1:3000). `npm run dev` also starts the realtime process on port **3001**.
+Postgres is published on port **5434**. `npm run dev` starts the site on port **3000** and the realtime process on port **3001**, both on every network interface. On this computer the site is at [http://127.0.0.1:3000](http://127.0.0.1:3000). Another device on the same network uses this computer’s address, and the board opens its socket at `ws://<that host>:3001`.
 
-To try a match, open the site in two browsers (or a normal window and a private window). Start Quick Match in both. Cookies are not shared between them, so they are two guests.
+To try a match, open the site in two browsers, or on two devices. Cookies are not shared between them, so they are two guests. Quick Match pairs whoever is searching. Play a friend creates a one-time link; the other person opens it and sits down. A second person cannot take that seat. A game against the computer stays on this device. There is no same-device game for two people.
 
-`RECONNECT_GRACE_MS` (default 60 seconds) is how long a dropped connection can last before the other player is awarded the game. `INVITE_TTL_MS` is how long a friend link lasts. `QUEUE_TTL_MS` is how long a search stays in the queue.
+If the socket drops, the board keeps loading the match over HTTP and shows Polling. If that load fails too, it shows Reconnecting and tries the socket again after 1, 2, 4, then 8 seconds. The server, not the browser, decides when a dropped opponent forfeits. `RECONNECT_GRACE_MS` (default 60 seconds) is that window.
+
+`INVITE_TTL_MS` is how long a friend link lasts. `QUEUE_TTL_MS` is how long a search stays in the queue. `npm test` uses the Docker database on port 5434 when `DATABASE_URL` is not already a local address, so a remote database is not cleared by the suite.
 
 ## Deploy on Vercel
 

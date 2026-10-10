@@ -11,6 +11,11 @@ export const INITIAL_CLOCK_MS = 5 * 60 * 1000;
 
 export type GameMode = "local" | "ai";
 
+/** Stored computer games can be resumed. A same-device human snapshot cannot. */
+export function canResumeStoredGame(mode: string) {
+  return mode === "ai";
+}
+
 export interface EndCommand {
   type: "resign" | "draw" | "timeout";
   player?: Player;

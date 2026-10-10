@@ -33,7 +33,7 @@ function loadEnv() {
 
 loadEnv();
 
-if (process.env.DATABASE_URL && /supabase\.co|pooler\.supabase\.com/.test(process.env.DATABASE_URL)) {
+if (!process.env.DATABASE_URL?.includes("127.0.0.1") && !process.env.DATABASE_URL?.includes("localhost")) {
   process.env.DATABASE_URL = "postgresql://playoware:playoware@127.0.0.1:5434/playoware";
 }
 

@@ -18,7 +18,7 @@ import {
 } from "@/engine/oware";
 import { ownedHousesInView } from "@/game/layout/pits";
 import { chooseMove } from "@/lib/ai";
-import { LocalGameSession, type SessionSnapshot } from "@/lib/game/session";
+import { canResumeStoredGame, LocalGameSession, type SessionSnapshot } from "@/lib/game/session";
 import { sounds } from "@/lib/sound";
 import {
   claimAiTurn,
@@ -49,7 +49,9 @@ function SoundIcon({ on }: { on: boolean }) {
 function loadSession(raw: string) {
   if (raw === "pending" || raw === "missing") return null;
   try {
-    return LocalGameSession.fromSnapshot(JSON.parse(raw) as SessionSnapshot);
+    const session = LocalGameSession.fromSnapshot(JSON.parse(raw) as SessionSnapshot);
+    if (!canResumeStoredGame(session.mode)) return null;
+    return session;
   } catch {
     return null;
   }

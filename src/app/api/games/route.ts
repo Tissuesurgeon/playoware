@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth/user";
 import { getPrisma } from "@/lib/db/client";
 import { concludeGame, InvalidGameError } from "@/lib/game/record";
+import { canResumeStoredGame } from "@/lib/game/session";
 import type { EndCommand } from "@/lib/game/session";
 import type { Difficulty } from "@/lib/ai";
 
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
   if (typeof body.clientId !== "string" || body.clientId.length < 8 || body.clientId.length > 80) {
     return NextResponse.json({ error: "Missing game id." }, { status: 400 });
   }
-  if (body.mode !== "local" && body.mode !== "ai") {
+  if (typeof body.mode !== "string" || !canResumeStoredGame(body.mode)) {
     return NextResponse.json({ error: "Unknown game mode." }, { status: 400 });
   }
   if (!Array.isArray(body.moves) || body.moves.length > 400) {

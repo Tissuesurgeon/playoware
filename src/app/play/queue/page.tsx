@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { NamePrompt } from "@/components/play/NamePrompt";
 import { Button } from "@/components/ui/Button";
 import { loadName, saveDisplayName } from "@/lib/start-game";
+import { connectionLabel, reconnectDelay, type SocketLink } from "@/realtime/backoff";
 import { socketUrl } from "@/realtime/browser";
 
 export default function QueuePage() {
@@ -14,6 +15,8 @@ export default function QueuePage() {
   const [askName, setAskName] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [socketState, setSocketState] = useState<SocketLink>("connecting");
+  const [pollOk, setPollOk] = useState(true);
 
   useEffect(() => {
     void loadName().then(setName);
@@ -22,24 +25,41 @@ export default function QueuePage() {
   useEffect(() => {
     if (!searching) return;
     let stopped = false;
+    let matched = false;
     let socket: WebSocket | null = null;
     let timer = 0;
     let poll = 0;
+    let attempt = 0;
 
-    function connect() {
+    function openMatch(matchId: string) {
+      matched = true;
+      router.push(`/match/${matchId}`);
+    }
+
+    function connect(initial: boolean) {
       if (stopped) return;
+      if (initial) setSocketState("connecting");
       socket = new WebSocket(socketUrl());
+      socket.onopen = () => {
+        attempt = 0;
+        setSocketState("open");
+      };
       socket.onmessage = (event) => {
         try {
           const message = JSON.parse(String(event.data)) as { type?: string; matchId?: string; error?: string };
-          if (message.type === "matchFound" && message.matchId) router.push(`/match/${message.matchId}`);
+          if (message.type === "matchFound" && message.matchId) openMatch(message.matchId);
           if (message.type === "error" && message.error) setError(message.error);
         } catch {
           setError("The search connection dropped.");
         }
       };
       socket.onclose = () => {
-        if (!stopped) timer = window.setTimeout(connect, 1000);
+        setSocketState("closed");
+        if (!stopped) {
+          const delay = reconnectDelay(attempt);
+          attempt += 1;
+          timer = window.setTimeout(() => connect(false), delay);
+        }
       };
     }
 
@@ -50,12 +70,12 @@ export default function QueuePage() {
         const body = (await response.json()) as { status?: string; matchId?: string | null; error?: string };
         if (stopped) return;
         if (!response.ok) {
-          setError(body.error ?? "Matchmaking is unavailable.");
-          setSearching(false);
+          setPollOk(false);
           return;
         }
+        setPollOk(true);
         if (body.matchId) {
-          router.push(`/match/${body.matchId}`);
+          openMatch(body.matchId);
           return;
         }
         if (body.status === "idle") {
@@ -63,10 +83,7 @@ export default function QueuePage() {
           setSearching(false);
         }
       } catch {
-        if (!stopped) {
-          setError("Matchmaking is unavailable.");
-          setSearching(false);
-        }
+        if (!stopped) setPollOk(false);
       }
     }
 
@@ -80,10 +97,10 @@ export default function QueuePage() {
           return;
         }
         if (body.matchId) {
-          router.push(`/match/${body.matchId}`);
+          openMatch(body.matchId);
           return;
         }
-        connect();
+        connect(true);
         void look();
         poll = window.setInterval(() => void look(), 2000);
       })
@@ -98,7 +115,7 @@ export default function QueuePage() {
       window.clearTimeout(timer);
       window.clearInterval(poll);
       socket?.close();
-      void fetch("/api/matches/queue", { method: "DELETE" });
+      if (!matched) void fetch("/api/matches/queue", { method: "DELETE" });
     };
   }, [router, searching]);
 
@@ -146,6 +163,7 @@ export default function QueuePage() {
     <main className="mx-auto max-w-xl px-4 py-20 text-center">
       <p className="text-xs font-semibold tracking-[0.18em] text-forest uppercase">Quick match</p>
       <h1 className="mt-3 font-serif text-5xl">Looking for an opponent</h1>
+      <p className="mt-3 text-sm font-semibold text-ink-soft">{connectionLabel({ socket: socketState, pollOk })}</p>
       <p className="mt-4 text-ink-soft">You’ll both be sent to the same table when someone else is searching.</p>
       {error ? <p className="mt-4 text-sm text-bad">{error}</p> : null}
       <Button

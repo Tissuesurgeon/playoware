@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSyncExternalStore } from "react";
+import { canResumeStoredGame } from "@/lib/game/session";
 import { readActiveGameId, readSnapshot, subscribeGameStorage } from "@/lib/storage";
 
 export function ResumeGame({ prominent = false }: { prominent?: boolean }) {
   const localId = useSyncExternalStore(subscribeGameStorage, readActiveGameId, () => null);
   const [onlineId, setOnlineId] = useState<string | null>(null);
   const local = localId ? readSnapshot(localId) : null;
-  const aiId = local?.mode === "ai" ? localId : null;
+  const aiId = local && canResumeStoredGame(local.mode) ? localId : null;
 
   useEffect(() => {
     let cancelled = false;

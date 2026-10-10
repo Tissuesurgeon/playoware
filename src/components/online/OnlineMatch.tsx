@@ -7,11 +7,13 @@ import { useMovePlayback } from "@/components/board/useMovePlayback";
 import { PlayerBar } from "@/components/game/PlayerBar";
 import { ResultDialog } from "@/components/game/ResultDialog";
 import { useSettings } from "@/components/settings/SettingsProvider";
+import { barState, rematchPath } from "@/components/online/turn";
 import { Button } from "@/components/ui/Button";
 import { initialBoard, initialTerritory, opponent, type AppliedMove, type CapturedSeeds, type GameState, type Player } from "@/engine/oware";
-import { latestSow } from "@/lib/animation/incoming";
+import { decideIncoming, preferNewer, shouldStartAccepted } from "@/lib/animation/incoming";
 import { OwareGameView } from "@/game/OwareGameView";
 import { ownedHousesInView } from "@/game/layout/pits";
+import { connectionLabel, reconnectDelay } from "@/realtime/backoff";
 import { socketUrl } from "@/realtime/browser";
 import type { MatchSnapshot, ServerMessage } from "@/realtime/protocol";
 
@@ -51,7 +53,7 @@ export function OnlineMatch({ id }: { id: string }) {
       animatingRef.current = false;
       const pending = pendingRef.current;
       pendingRef.current = null;
-      if (pending && pending.version !== versionRef.current) playRef.current(pending);
+      if (pending) playRef.current(pending);
     },
   });
   const startRef = useRef(playback.start);
@@ -73,22 +75,29 @@ export function OnlineMatch({ id }: { id: string }) {
     const opponentSide = next.you === "player1" ? "player2" : "player1";
     const opponentConnected = opponentSide === "player1" ? next.player1Connected : next.player2Connected;
     if (opponentConnected) setSeenOpponent(true);
-    if (!previous || next.version === versionRef.current) {
+    const decision = decideIncoming({
+      hasSnapshot: previous !== null,
+      currentVersion: versionRef.current,
+      previousPitCount: previous?.pits.length ?? 0,
+      nextVersion: next.version,
+      nextPits: next.pits,
+      animating: animatingRef.current,
+    });
+    if (decision.type === "ignore") return;
+    if (decision.type === "hold") {
+      pendingRef.current = preferNewer(pendingRef.current, next);
+      return;
+    }
+    if (decision.type === "store") {
       versionRef.current = next.version;
       snapshotRef.current = next;
       setSnapshot(next);
-      if (animatingRef.current) {
+      if (decision.land) {
         landRef.current({ board: next.board, captured: next.captured, currentPlayer: next.currentPlayer });
       }
       return;
     }
-    if (animatingRef.current) {
-      pendingRef.current = next;
-      return;
-    }
-    const unseen = next.pits.length - previous.pits.length;
-    const sow = unseen > 0 ? latestSow(next.pits) : null;
-    if (!sow) {
+    if (decision.type === "apply") {
       applySnapshot(next);
       return;
     }
@@ -96,7 +105,7 @@ export function OnlineMatch({ id }: { id: string }) {
     snapshotRef.current = next;
     setSnapshot(next);
     animatingRef.current = true;
-    startRef.current(sow.beforeBoard, sow.beforeCaptured, sow.applied, next.status === "completed", {
+    startRef.current(decision.sow.beforeBoard, decision.sow.beforeCaptured, decision.sow.applied, next.status === "completed", {
       board: next.board,
       captured: next.captured,
       currentPlayer: next.currentPlayer,
@@ -132,6 +141,7 @@ export function OnlineMatch({ id }: { id: string }) {
     let stopped = false;
     let socket: WebSocket | null = null;
     let timer = 0;
+    let attempt = 0;
 
     function handle(message: ServerMessage) {
       if (message.type === "snapshot" || message.type === "gameOver") {
@@ -141,7 +151,7 @@ export function OnlineMatch({ id }: { id: string }) {
         return;
       }
       if (message.type === "moveAccepted" && message.matchId === id) {
-        if (message.version !== versionRef.current + 1) return;
+        if (!shouldStartAccepted({ currentVersion: versionRef.current, acceptedVersion: message.version, animating: animatingRef.current })) return;
         versionRef.current = message.version;
         animatingRef.current = true;
         startRef.current(message.beforeBoard, message.beforeCaptured, message.applied, message.ended);
@@ -155,11 +165,12 @@ export function OnlineMatch({ id }: { id: string }) {
       playRef.current(next);
     }
 
-    function connect() {
+    function connect(initial: boolean) {
       if (stopped) return;
-      setSocketState("connecting");
+      if (initial) setSocketState("connecting");
       socket = new WebSocket(socketUrl());
       socket.onopen = () => {
+        attempt = 0;
         setSocketState("open");
         socket?.send(JSON.stringify({ type: "match.resume", matchId: id }));
       };
@@ -172,7 +183,11 @@ export function OnlineMatch({ id }: { id: string }) {
       };
       socket.onclose = () => {
         setSocketState("closed");
-        if (!stopped) timer = window.setTimeout(connect, 1000);
+        if (!stopped) {
+          const delay = reconnectDelay(attempt);
+          attempt += 1;
+          timer = window.setTimeout(() => connect(false), delay);
+        }
       };
     }
 
@@ -195,7 +210,7 @@ export function OnlineMatch({ id }: { id: string }) {
       }
     }
 
-    connect();
+    connect(true);
     void poll();
     const pollTimer = window.setInterval(() => void poll(), 2000);
 
@@ -213,58 +228,71 @@ export function OnlineMatch({ id }: { id: string }) {
     };
   }, [id]);
 
+  async function recoverMatch() {
+    try {
+      const fresh = await fetch(`/api/matches/${id}`, { cache: "no-store" });
+      if (!fresh.ok) {
+        setError((current) => current ?? "The server could not be reached.");
+        return;
+      }
+      playRef.current((await fresh.json()) as MatchSnapshot);
+    } catch {
+      setError((current) => current ?? "The server could not be reached.");
+    }
+  }
+
   async function sendAction(path: string, body: Record<string, unknown>) {
     setError(null);
-    const response = await fetch(path, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...body, expectedVersion: versionRef.current, clientMoveId: crypto.randomUUID() }),
-    });
-    const payload = (await response.json()) as {
-      error?: string;
-      snapshot?: MatchSnapshot;
-      applied?: AppliedMove | null;
-      beforeBoard?: number[];
-      beforeCaptured?: CapturedSeeds;
-      version?: number;
-    };
-    if (!response.ok) {
-      setError(payload.error ?? "That move was rejected.");
-      const fresh = await fetch(`/api/matches/${id}`);
-      if (fresh.ok) applySnapshot((await fresh.json()) as MatchSnapshot);
-      return;
-    }
-    if (
-      payload.applied &&
-      payload.beforeBoard &&
-      payload.beforeCaptured &&
-      payload.version === versionRef.current + 1
-    ) {
-      versionRef.current = payload.version;
-      animatingRef.current = true;
-      startRef.current(
-        payload.beforeBoard,
-        payload.beforeCaptured,
-        payload.applied,
-        payload.snapshot?.status === "completed",
-        payload.snapshot
-          ? {
-              board: payload.snapshot.board,
-              captured: payload.snapshot.captured,
-              currentPlayer: payload.snapshot.currentPlayer,
-            }
-          : undefined,
-      );
-      if (payload.snapshot) {
-        snapshotRef.current = payload.snapshot;
-        setSnapshot(payload.snapshot);
+    try {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...body, expectedVersion: versionRef.current, clientMoveId: crypto.randomUUID() }),
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        snapshot?: MatchSnapshot;
+        applied?: AppliedMove | null;
+        beforeBoard?: number[];
+        beforeCaptured?: CapturedSeeds;
+        version?: number;
+      };
+      if (!response.ok) {
+        setError(payload.error ?? "That move was rejected.");
+        await recoverMatch();
+        return;
       }
-      return;
-    }
-    if (payload.snapshot && !animatingRef.current) {
-      versionRef.current = payload.snapshot.version;
-      snapshotRef.current = payload.snapshot;
-      setSnapshot(payload.snapshot);
+      if (
+        payload.applied &&
+        payload.beforeBoard &&
+        payload.beforeCaptured &&
+        payload.version !== undefined &&
+        shouldStartAccepted({ currentVersion: versionRef.current, acceptedVersion: payload.version, animating: animatingRef.current })
+      ) {
+        versionRef.current = payload.version;
+        animatingRef.current = true;
+        startRef.current(
+          payload.beforeBoard,
+          payload.beforeCaptured,
+          payload.applied,
+          payload.snapshot?.status === "completed",
+          payload.snapshot
+            ? {
+                board: payload.snapshot.board,
+                captured: payload.snapshot.captured,
+                currentPlayer: payload.snapshot.currentPlayer,
+              }
+            : undefined,
+        );
+        if (payload.snapshot) {
+          snapshotRef.current = payload.snapshot;
+          setSnapshot(payload.snapshot);
+        }
+        return;
+      }
+      if (payload.snapshot) playRef.current(payload.snapshot);
+    } catch {
+      await recoverMatch();
     }
   }
 
@@ -313,6 +341,9 @@ export function OnlineMatch({ id }: { id: string }) {
     player2: territory.filter((owner) => owner === "player2").length,
   };
   const speedLabel = settings.animation === "fast" ? "Fast" : settings.animation === "instant" ? "Instant" : "Normal";
+  const sower = playback.playing ? playback.applied?.move.player ?? null : null;
+  const opponentBar = barState({ side: opponentSide, you, sower, yourTurn: snapshot.yourTurn, over, waiting });
+  const yourBar = barState({ side: you, you, sower, yourTurn: snapshot.yourTurn, over, waiting });
   const invite = link ? `${window.location.origin}${link}` : null;
 
   return (
@@ -338,9 +369,9 @@ export function OnlineMatch({ id }: { id: string }) {
           </>
         )}
       </div>
-      {socketState === "closed" && !pollOk ? <p className="text-center text-sm font-semibold text-ink-soft">Reconnecting…</p> : null}
+      <p className="text-center text-sm font-semibold text-ink-soft">{connectionLabel({ socket: socketState, pollOk })}</p>
       {seenOpponent && !opponentConnected && snapshot.status === "active" ? (
-        <p className="text-center text-sm font-semibold text-ink-soft">Opponent disconnected. The game is held open.</p>
+        <p className="text-center text-sm font-semibold text-ink-soft">Opponent disconnected. The table stays open while they reconnect.</p>
       ) : null}
       {waiting ? (
         <section className="rounded-[28px] border border-line bg-paper p-5 sm:p-6">
@@ -406,7 +437,8 @@ export function OnlineMatch({ id }: { id: string }) {
           player={opponentSide}
           houses={houses[opponentSide]}
           seeds={captured[opponentSide]}
-          active={!playback.playing && snapshot.yourTurn === false && !over}
+          active={opponentBar.active}
+          status={opponentBar.status}
         />
       )}
       <OwareGameView
@@ -440,16 +472,16 @@ export function OnlineMatch({ id }: { id: string }) {
         player={you}
         houses={houses[you]}
         seeds={captured[you]}
-        active={!waiting && snapshot.yourTurn && !playback.playing && !over}
-        status={waiting ? "You're seated" : snapshot.yourTurn && !over ? "Your turn" : undefined}
+        active={yourBar.active}
+        status={yourBar.status}
       />
       {error ? <p className="text-center text-sm text-bad">{error}</p> : null}
       {!waiting && !over ? (
         <div className="flex justify-center gap-3">
-          <Button variant="secondary" onClick={() => void sendAction(`/api/matches/${id}/draw`, {})}>
+          <Button variant="secondary" disabled={playback.playing} onClick={() => void sendAction(`/api/matches/${id}/draw`, {})}>
             {snapshot.drawOffer && snapshot.drawOffer !== you ? "Accept draw" : "Offer draw"}
           </Button>
-          <Button variant="danger" onClick={() => void sendAction(`/api/matches/${id}/resign`, {})}>
+          <Button variant="danger" disabled={playback.playing} onClick={() => void sendAction(`/api/matches/${id}/resign`, {})}>
             Resign
           </Button>
         </div>
@@ -463,7 +495,7 @@ export function OnlineMatch({ id }: { id: string }) {
           saveState="saved"
           onRetrySave={() => undefined}
           onReview={() => router.push(`/review/${id}`)}
-          onAgain={() => router.push("/play/queue")}
+          onAgain={() => router.push(rematchPath(snapshot.kind))}
         />
       ) : null}
     </main>
