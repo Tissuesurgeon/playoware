@@ -230,6 +230,7 @@ export class OwareGame {
   }
 
   private resolvePosition(): void {
+    if (this.finishIfOneHouseLeft(this.territory)) return;
     this.enterTurn();
   }
 
@@ -271,13 +272,7 @@ export class OwareGame {
     const round = this.round + 1;
     const starter = roundStarter(round);
     const key = openingKey(territory, starter);
-    const south = ownedPits(territory, "player1").length;
-    const north = ownedPits(territory, "player2").length;
-    if (south === 0 || north === 0) {
-      this.territory = territory;
-      this.finish("won", south === 0 ? "player2" : "player1", "territory");
-      return;
-    }
+    if (this.finishIfOneHouseLeft(territory)) return;
     this.openings.add(key);
     this.territory = territory;
     this.board = initialBoard();
@@ -285,6 +280,20 @@ export class OwareGame {
     this.currentPlayer = starter;
     this.round = round;
     this.seen = new Set([positionKey(this.board, starter, this.captured, territory)]);
+  }
+
+  /** The match ends when either player has only one house left. That player loses. */
+  private finishIfOneHouseLeft(territory: Player[]): boolean {
+    const south = ownedPits(territory, "player1").length;
+    const north = ownedPits(territory, "player2").length;
+    if (south > 1 && north > 1) return false;
+    this.territory = territory;
+    if (south === north) {
+      this.finish("draw", undefined, "territory");
+      return true;
+    }
+    this.finish("won", south < north ? "player2" : "player1", "territory");
+    return true;
   }
 
   private finish(status: GameStatus, winner: Player | undefined, reason: EndReason): void {

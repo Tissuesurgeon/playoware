@@ -43,7 +43,7 @@ export function OwareGameView({
 }: SceneBoardProps) {
   const frame = preview
     ? "relative h-[220px] w-full sm:h-[260px] md:h-[min(40vh,340px)] md:min-h-[240px]"
-    : "relative h-[min(48svh,420px)] min-h-[320px] w-full sm:h-[min(50vh,500px)] sm:min-h-[260px] lg:h-[min(56vh,540px)]";
+    : "relative h-[min(34svh,420px)] min-h-[168px] w-full sm:h-[min(46vh,480px)] sm:min-h-[240px] lg:h-[min(52vh,520px)]";
   return (
     <div>
       <div className={`${frame} overflow-hidden rounded-[28px] bg-cream`}>

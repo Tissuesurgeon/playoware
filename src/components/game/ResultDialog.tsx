@@ -7,7 +7,7 @@ import type { LocalGameSession } from "@/lib/game/session";
 
 function endingLabel(reason: GameState["endReason"]) {
   if (reason === "majority") return "First to 25 seeds.";
-  if (reason === "territory") return "All six houses were captured.";
+  if (reason === "territory") return "One player has only one house left.";
   if (reason === "starvation") return "No legal move remained.";
   if (reason === "repetition") return "The same position came around again.";
   if (reason === "resignation") return "One player left the table.";

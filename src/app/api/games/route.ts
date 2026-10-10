@@ -107,7 +107,7 @@ export async function POST(request: Request) {
         winner: result.winner ?? null,
         scoreP1: result.score.player1,
         scoreP2: result.score.player2,
-        timeControlMs: body.timeControlMs === 300_000 ? 300_000 : 300_000,
+        timeControlMs: 0,
         player1UserId: user.id,
         player1Name: nameOf(body.player1Name, user.displayName),
         player2Name: nameOf(body.player2Name, body.mode === "ai" ? "AI" : "Guest"),

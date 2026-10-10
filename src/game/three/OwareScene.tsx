@@ -225,27 +225,19 @@ function PlayerHand({ hand, travelMs, reduced }: { hand: HandVisual; travelMs: n
   const shown = Math.min(6, hand.count);
   return (
     <group ref={ref}>
-      {Array.from({ length: shown }, (_, index) => {
-        const pose = getSeedPosition(hand.pit, index + 30, shown);
-        return (
-          <mesh
-            key={index}
-            geometry={seedGeometry}
-            material={seedMaterial}
-            position={[pose.x * 0.45, 0.16 + index * 0.012, pose.z * 0.45]}
-            rotation={[0.4, pose.rotationY, pose.rotationZ]}
-            scale={pose.scale}
-          />
-        );
-      })}
-      <Html center position={[0, 0.55, 0]} zIndexRange={[5, 0]} style={{ pointerEvents: "none" }}>
-        <span className="flex flex-col items-center gap-1">
-          {hand.player ? (
-            <span className="rounded-full bg-walnut px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-paper uppercase">
-              {hand.player}
-            </span>
-          ) : null}
-          <span className="rounded-full bg-paper/95 px-2 py-0.5 text-xs font-semibold text-ink shadow-sm">{hand.count}</span>
+      {Array.from({ length: shown }, (_, index) => (
+        <mesh
+          key={index}
+          geometry={seedGeometry}
+          material={seedMaterial}
+          position={[(index % 3) * 0.07 - 0.07, 0.12 + Math.floor(index / 3) * 0.08, index % 2 === 0 ? -0.03 : 0.03]}
+          rotation={[0.4, index * 0.4, 0.2]}
+        />
+      ))}
+      <Html center position={[0, 0.36, 0]} zIndexRange={[5, 0]} style={{ pointerEvents: "none" }}>
+        <span className="inline-flex max-w-[9rem] items-center gap-1.5 rounded-full bg-paper/95 px-2 py-0.5 text-xs font-semibold text-ink shadow-sm">
+          {hand.player ? <span className="truncate">{hand.player}</span> : null}
+          <span className="tabular-nums">{hand.count}</span>
         </span>
       </Html>
     </group>

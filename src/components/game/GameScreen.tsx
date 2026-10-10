@@ -88,35 +88,6 @@ export function GameScreen({ id }: { id: string }) {
   const session = useMemo(() => loadSession(raw), [raw]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (document.hidden || isGameBusy(id)) return;
-      const current = loadSession(readGameRaw(id));
-      if (!current || !current.snapshot().running || current.getState().status !== "in_progress") return;
-      current.tick(Date.now());
-      const ended = current.getState().status !== "in_progress";
-      writeSnapshot(current.snapshot(), !ended);
-      if (ended) {
-        if (soundRef.current) sounds.end();
-        void persistResult(current);
-      }
-    }, 200);
-    return () => window.clearInterval(timer);
-  }, [id]);
-
-  useEffect(() => {
-    function onVisible() {
-      if (document.hidden) return;
-      const current = loadSession(readGameRaw(id));
-      if (!current?.snapshot().running || current.getState().status !== "in_progress") return;
-      current.resume(Date.now());
-      writeSnapshot(current.snapshot(), true);
-    }
-    document.addEventListener("visibilitychange", onVisible);
-    onVisible();
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [id]);
-
-  useEffect(() => {
     function onLeave(event: BeforeUnloadEvent) {
       const current = loadSession(readGameRaw(id));
       if (current?.getState().status === "in_progress") {
@@ -145,7 +116,7 @@ export function GameScreen({ id }: { id: string }) {
           moves: snapshot.moves.map((move) => ({ pit: move.pit })),
           endCommand: snapshot.endCommand,
           startedAt: current.startedAt,
-          timeControlMs: 300_000,
+          timeControlMs: 0,
         }),
       });
       if (!response.ok) throw new Error("save failed");
@@ -314,7 +285,6 @@ export function GameScreen({ id }: { id: string }) {
 
   const state = session.getState();
   const replay = replayGame(state.moveHistory);
-  const clocks = session.previewClock(Date.now());
   const over = state.status !== "in_progress";
   const frame = playback.frame;
   const mover = playback.applied?.move.player;
@@ -355,6 +325,7 @@ export function GameScreen({ id }: { id: string }) {
           <button
             type="button"
             className="inline-flex min-h-11 items-center text-sm font-semibold text-ink-soft"
+            aria-label={`Animation speed, ${speedLabel}`}
             onClick={() => {
               const order = ["normal", "fast", "instant"] as const;
               const next = order[(order.indexOf(settings.animation) + 1) % order.length] ?? "normal";
@@ -382,7 +353,6 @@ export function GameScreen({ id }: { id: string }) {
         player={topPlayer}
         houses={owned[topPlayer]}
         seeds={captured[topPlayer]}
-        clockMs={clocks[topPlayer]}
         active={!playback.playing && !over && state.currentPlayer === topPlayer}
         thinking={thinking && topPlayer === "player2"}
       />
@@ -418,12 +388,12 @@ export function GameScreen({ id }: { id: string }) {
         onAccelerate={playback.playing ? playback.accelerate : undefined}
         disabled={playback.playing || thinking || over}
       />
+      {playback.playing ? <p className="text-center text-sm text-ink-soft">Tap the board to hurry.</p> : null}
       <PlayerBar
         name={names[viewer]}
         player={viewer}
         houses={owned[viewer]}
         seeds={captured[viewer]}
-        clockMs={clocks[viewer]}
         active={!playback.playing && !over && state.currentPlayer === viewer}
       />
       <p className="text-center text-sm text-ink-soft tabular-nums">Round {state.round}</p>
@@ -477,18 +447,16 @@ export function GameScreen({ id }: { id: string }) {
         <p className={`text-center text-sm ${notice.startsWith("All six houses") ? "text-ink-soft" : "text-bad"}`}>{notice}</p>
       ) : null}
       {thinking ? <p className="text-center text-sm font-semibold text-ink-soft">AI is thinking…</p> : null}
-      <section>
-        <div className="rounded-3xl border border-line bg-paper p-4 sm:p-5">
-          <h2 className="text-xs font-semibold tracking-wide text-ink-soft uppercase">Game</h2>
-          <ol className="mt-3 max-h-48 space-y-1 overflow-auto text-sm">
-            {replay.applied.length === 0 ? <li className="text-ink-soft">No moves yet.</li> : null}
-            {replay.applied.map((applied) => (
-              <li key={applied.move.moveNumber}>{formatMove(applied.move, applied.seedsCaptured, applied.capturedPits.length)}</li>
-            ))}
-          </ol>
-          <p className="mt-3 text-xs text-ink-soft">Keys 1–6 play the houses you still own, from the left.</p>
-        </div>
-      </section>
+      <details className="rounded-3xl border border-line bg-paper p-4 sm:p-5">
+        <summary className="cursor-pointer text-xs font-semibold tracking-wide text-ink-soft uppercase">Moves</summary>
+        <ol className="mt-3 max-h-48 space-y-1 overflow-auto text-sm">
+          {replay.applied.length === 0 ? <li className="text-ink-soft">No moves yet.</li> : null}
+          {replay.applied.map((applied) => (
+            <li key={applied.move.moveNumber}>{formatMove(applied.move, applied.seedsCaptured, applied.capturedPits.length)}</li>
+          ))}
+        </ol>
+        <p className="mt-3 text-xs text-ink-soft">Keys 1–6 play the houses you still own, from the left.</p>
+      </details>
       {confirmLeave && !over ? (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="leave-title">
           <div className="w-full max-w-sm rounded-3xl bg-paper p-6 shadow-xl">

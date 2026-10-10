@@ -31,26 +31,31 @@ export function PlayerBar({
   const houseWord = houses === 1 ? "house" : "houses";
   const seedWord = seeds === 1 ? "seed" : "seeds";
 
+  const figure = "shrink-0 text-right";
+  const figureValue = "font-serif text-xl leading-none tabular-nums";
+  const figureLabel = "mt-0.5 block text-[10px] font-semibold tracking-wide text-ink-soft uppercase";
+
   return (
-    <div className={`flex items-center gap-3 rounded-2xl px-2 py-1.5 ${frame} ${align === "right" ? "flex-row-reverse text-right" : ""}`}>
-      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-paper sm:h-11 sm:w-11 ${mark}`} aria-hidden>
+    <div className={`flex items-center gap-2 rounded-2xl px-2 py-1 ${frame} ${align === "right" ? "flex-row-reverse text-right" : ""}`}>
+      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-paper sm:h-9 sm:w-9 ${mark}`} aria-hidden>
         {name.slice(0, 1).toUpperCase()}
       </div>
       <div className="min-w-0 flex-1">
-        <p className={`text-xs font-semibold tracking-wide uppercase ${active || thinking ? turn : "text-ink-soft"}`}>{label}</p>
-        <p className="truncate font-serif text-lg leading-tight sm:text-xl">{name}</p>
+        <p className={`text-[11px] font-semibold tracking-wide uppercase ${active || thinking ? turn : "text-ink-soft"}`}>{label}</p>
+        <p className="truncate font-serif text-base leading-tight sm:text-lg">{name}</p>
         {typeof clockMs === "number" ? (
           <p className={`font-serif text-sm tabular-nums ${low ? "text-bad" : "text-ink-soft"}`} aria-label={`${name} clock ${formatClock(clockMs)}`}>
             {formatClock(clockMs)}
           </p>
         ) : null}
       </div>
-      <p className={`shrink-0 border-l border-line pl-3 text-right ${align === "right" ? "border-l-0 border-r pr-3 pl-0" : ""}`} aria-label={`${name}, ${houses} ${houseWord}, ${seeds} ${seedWord} captured`}>
-        <span className="block font-serif text-3xl leading-none tabular-nums">{houses}</span>
-        <span className="mt-1 block text-[11px] font-semibold tracking-wide text-ink-soft uppercase">{houseWord}</span>
-        <span className="mt-1 block text-sm tabular-nums text-ink-soft">
-          <span className="font-semibold text-ink">{seeds}</span> {seedWord}
-        </span>
+      <p className={figure} aria-label={`${name}, ${houses} ${houseWord}`}>
+        <span className={figureValue}>{houses}</span>
+        <span className={figureLabel}>{houseWord}</span>
+      </p>
+      <p className={figure} aria-label={`${name}, ${seeds} ${seedWord} captured`}>
+        <span className={figureValue}>{seeds}</span>
+        <span className={figureLabel}>{seedWord}</span>
       </p>
     </div>
   );

@@ -60,7 +60,7 @@ export default function LearnPage() {
           A four is the only capture, so the useful question is where the last seed of a handful will land. Making four on your own houses in the middle of a sow scores and still leaves you a hand. Making four on their houses before the hand is empty gives the seeds to them.
         </p>
         <p className="mt-3 leading-7 text-ink-soft">
-          After a round, the seeds go back as four in each house. If you captured more houses than you started with, you take that many of your opponent’s houses, starting from the right. One, two, three, or four houses do not end the match. A player with only two houses left still chooses which of them to play. The match ends when one player owns all six of the other’s houses.
+          After a round, the seeds go back as four in each house. If you captured more houses than you started with, you take that many of your opponent’s houses, starting from the right. One, two, three, or four houses do not end the match. A player with only two houses left still chooses which of them to play. The match ends when a player has only one house left.
         </p>
       </section>
 

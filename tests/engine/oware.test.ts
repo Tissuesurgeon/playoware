@@ -223,7 +223,7 @@ describe("game end and scoring", () => {
     expect(() => game.makeMove(1)).not.toThrow();
   });
 
-  it("ends only when one player owns every house", () => {
+  it("ends when a player has only one house", () => {
     const territory = Array.from({ length: 12 }, (_, pit) => (pit === 11 ? "player2" : "player1")) as Array<
       "player1" | "player2"
     >;
@@ -233,13 +233,24 @@ describe("game end and scoring", () => {
       currentPlayer: "player1",
       capturedSeeds: captured(41, 0),
     });
-    game.makeMove(0);
     expect(game.getResult()).toMatchObject({
       outcome: "win",
       winner: "player1",
       endReason: "territory",
     });
-    expect(game.getState().territory.every((owner) => owner === "player1")).toBe(true);
+    expect(game.getState().territory.filter((owner) => owner === "player2")).toHaveLength(1);
+    expect(game.getLegalMoves()).toEqual([]);
+  });
+
+  it("ends the match when a round leaves a player with one house", () => {
+    const player1 = 23 + 5 * 4;
+    const game = gameFrom([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "player1", captured(player1, 48 - 1 - player1));
+    expect(game.getResult()).toMatchObject({
+      outcome: "win",
+      winner: "player1",
+      endReason: "territory",
+    });
+    expect(game.getState().territory.filter((owner) => owner === "player2")).toHaveLength(1);
   });
 
   it("does not end when each player has captured two houses", () => {

@@ -40,6 +40,8 @@ export function OnlineMatch({ id }: { id: string }) {
   const [socketState, setSocketState] = useState<"connecting" | "open" | "closed">("connecting");
   const [pollOk, setPollOk] = useState(true);
   const [seenOpponent, setSeenOpponent] = useState(false);
+  const [confirmResign, setConfirmResign] = useState(false);
+  const resigningRef = useRef(false);
   const versionRef = useRef(0);
   const animatingRef = useRef(false);
   const pendingRef = useRef<MatchSnapshot | null>(null);
@@ -341,23 +343,28 @@ export function OnlineMatch({ id }: { id: string }) {
     player2: territory.filter((owner) => owner === "player2").length,
   };
   const speedLabel = settings.animation === "fast" ? "Fast" : settings.animation === "instant" ? "Instant" : "Normal";
+  const linkLabel = connectionLabel({ socket: socketState, pollOk });
   const sower = playback.playing ? playback.applied?.move.player ?? null : null;
   const opponentBar = barState({ side: opponentSide, you, sower, yourTurn: snapshot.yourTurn, over, waiting });
   const yourBar = barState({ side: you, you, sower, yourTurn: snapshot.yourTurn, over, waiting });
   const invite = link ? `${window.location.origin}${link}` : null;
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:gap-4 sm:px-4 sm:py-4">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-1.5 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-2 sm:px-4 sm:py-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <Link href="/play" className="inline-flex min-h-11 items-center text-sm font-semibold text-ink-soft">
           ← Back
         </Link>
         {waiting ? null : (
           <>
-            <p className="font-serif text-xl">Oware</p>
+            <p className="inline-flex items-center gap-2 font-serif text-xl">
+              Oware
+              {linkLabel === "Live" ? <span className="h-2 w-2 rounded-full bg-forest" aria-label="Live" /> : null}
+            </p>
             <button
               type="button"
               className="inline-flex min-h-11 items-center text-sm font-semibold text-ink-soft"
+              aria-label={`Animation speed, ${speedLabel}`}
               onClick={() => {
                 const order = ["normal", "fast", "instant"] as const;
                 const next = order[(order.indexOf(settings.animation) + 1) % order.length] ?? "normal";
@@ -369,7 +376,7 @@ export function OnlineMatch({ id }: { id: string }) {
           </>
         )}
       </div>
-      <p className="text-center text-sm font-semibold text-ink-soft">{connectionLabel({ socket: socketState, pollOk })}</p>
+      {linkLabel === "Live" ? null : <p className="text-center text-sm font-semibold text-ink-soft">{linkLabel}</p>}
       {seenOpponent && !opponentConnected && snapshot.status === "active" ? (
         <p className="text-center text-sm font-semibold text-ink-soft">Opponent disconnected. The table stays open while they reconnect.</p>
       ) : null}
@@ -461,12 +468,14 @@ export function OnlineMatch({ id }: { id: string }) {
             : null
         }
         activeBottom={(frame?.actor ?? snapshot.currentPlayer) === you}
+        forfeitedPits={frame?.forfeitedPits ?? []}
         travelMs={playback.travelMs}
         captureMs={playback.captureMs}
         onPlay={(pit) => void sendAction(`/api/matches/${id}/moves`, { pit })}
         onAccelerate={playback.playing ? playback.accelerate : undefined}
         disabled={playback.playing || over || waiting || !snapshot.yourTurn}
       />
+      {playback.playing ? <p className="text-center text-sm text-ink-soft">Tap the board to hurry.</p> : null}
       <PlayerBar
         name={names[you]}
         player={you}
@@ -481,9 +490,40 @@ export function OnlineMatch({ id }: { id: string }) {
           <Button variant="secondary" disabled={playback.playing} onClick={() => void sendAction(`/api/matches/${id}/draw`, {})}>
             {snapshot.drawOffer && snapshot.drawOffer !== you ? "Accept draw" : "Offer draw"}
           </Button>
-          <Button variant="danger" disabled={playback.playing} onClick={() => void sendAction(`/api/matches/${id}/resign`, {})}>
+          <Button
+            variant="danger"
+            disabled={playback.playing}
+            onClick={() => {
+              resigningRef.current = false;
+              setConfirmResign(true);
+            }}
+          >
             Resign
           </Button>
+        </div>
+      ) : null}
+      {confirmResign && !over ? (
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="resign-title">
+          <div className="w-full max-w-sm rounded-3xl bg-paper p-6">
+            <h2 id="resign-title" className="font-serif text-2xl">Resign?</h2>
+            <p className="mt-2 text-sm text-ink-soft">{names[you]} will lose the game.</p>
+            <div className="mt-5 flex gap-2">
+              <Button variant="secondary" className="flex-1" onClick={() => setConfirmResign(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  if (resigningRef.current) return;
+                  resigningRef.current = true;
+                  setConfirmResign(false);
+                  void sendAction(`/api/matches/${id}/resign`, {});
+                }}
+              >
+                Resign
+              </Button>
+            </div>
+          </div>
         </div>
       ) : null}
       {waiting ? null : <p className="text-center text-sm text-ink-soft tabular-nums">Round {snapshot.round ?? 1}</p>}

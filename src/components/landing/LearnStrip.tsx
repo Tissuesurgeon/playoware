@@ -15,7 +15,7 @@ export function LearnStrip() {
             The hand keeps going until the last seed lands in an empty house.
           </h2>
           <p className="mt-4 max-w-lg text-base leading-7 text-seed/90">
-            A house that reaches four is captured. The first player to 25 seeds wins. An empty row has to be fed.
+            A house that reaches four is captured. The match ends when a player has only one house left. An empty row has to be fed.
           </p>
         </div>
         <nav aria-label="Learn" className="flex flex-col gap-3 text-sm font-semibold">

@@ -66,14 +66,11 @@ describe("local game session", () => {
     expect(lead.getState().status).toBe("in_progress");
   });
 
-  it("flags the player whose clock expires", () => {
+  it("keeps playing after the clock would have run out", () => {
     const game = session(0, 1_000);
     game.tick(1_000);
-    expect(game.getState()).toMatchObject({
-      status: "won",
-      winner: "player2",
-      endReason: "timeout",
-    });
+    expect(game.getState().status).toBe("in_progress");
+    expect(() => game.submitMove(0, 1_000)).not.toThrow();
   });
 
   it("charges the mover and then the opponent after the animation", () => {

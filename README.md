@@ -99,4 +99,4 @@ docker run --rm -p 3000:3000 -e DATABASE_URL="postgresql://playoware:playoware@h
 
 ## What this version does not include
 
-Accounts with passwords, clocks on online games, ratings, puzzles, and watching other people’s games are not part of this version. A computer game still uses a five-minute clock on this device.
+Accounts with passwords, clocks, ratings, puzzles, and watching other people’s games are not part of this version.

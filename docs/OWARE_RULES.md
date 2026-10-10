@@ -1,6 +1,6 @@
 # Oware
 
-PlayOware sows in the roaming way: the hand keeps going until the last seed falls in an empty house. Fours are captured. A match is several rounds. It ends when one player owns all six of the other’s houses.
+PlayOware sows in the roaming way: the hand keeps going until the last seed falls in an empty house. Fours are captured. A match is several rounds. It ends when one player has only one house left.
 
 Sources:
 
@@ -73,6 +73,7 @@ Houses earned are the captured seeds divided by four, ignoring a remainder. Then
 - Capturing one, two, three, or four extra houses does not end the match.
 - The next round opens with four seeds in every house.
 - A player who owns only two houses still chooses which of those two to play.
+- A player left with one house has lost the match.
 
 ## Game end and scoring
 
@@ -80,22 +81,13 @@ The board and both captured totals always add up to 48. Captured seeds decide th
 
 The match ends in the first of these ways that applies:
 
-1. **Territory.** One player owns all twelve houses. The other player’s six houses are gone. That player wins.
+1. **Territory.** One player has only one house left. The other player wins.
 2. **Resignation** (PlayOware action). The resigning player loses. Captured totals stay as they are.
 3. **Agreed draw** (PlayOware action). The result is a draw. Captured totals stay as they are.
-4. **Timeout** (PlayOware clock). The player whose clock reaches zero loses. Captured totals stay as they are.
 
 Reaching 25 captured seeds does not end the match. A 24–24 round keeps the same houses and starts again.
 
-## Clocks
-
-Clocks are a PlayOware layer on top of the board rules:
-
-- Each player starts with 5 minutes and no increment.
-- A player’s clock runs only on their turn.
-- It does not run during sowing or capture animation.
-- While the AI is choosing, only the AI’s clock runs.
-- Flag fall is a loss, as above.
+There is no clock. A turn can take as long as the player needs.
 
 ## Notation
 

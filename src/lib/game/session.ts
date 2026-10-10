@@ -238,12 +238,6 @@ export class LocalGameSession {
     if (elapsed <= 0) return;
     const player = this.game.getState().currentPlayer;
     this.remaining[player] = Math.max(0, this.remaining[player] - elapsed);
-    if (this.remaining[player] === 0) {
-      this.endCommand = { type: "timeout", player };
-      this.game.flag(player);
-      this.running = false;
-      this.drawOffer = null;
-    }
   }
 
   private applyEnd(command: EndCommand): void {
