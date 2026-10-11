@@ -4,13 +4,21 @@ import { Html, PerspectiveCamera } from "@react-three/drei";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
+  BoxGeometry,
+  BufferAttribute,
+  CanvasTexture,
   DoubleSide,
   ExtrudeGeometry,
+  LatheGeometry,
   MeshStandardMaterial,
+  NoColorSpace,
   Path,
+  RepeatWrapping,
   Shape,
   SphereGeometry,
+  SRGBColorSpace,
   TorusGeometry,
+  Vector2,
   type Group,
   type Mesh,
   type PerspectiveCamera as PerspectiveCameraImpl,
@@ -22,16 +30,146 @@ import { captureBowlPosition, pitPosition } from "@/game/layout/pits";
 import { getSeedPosition } from "@/game/layout/seeds";
 import type { HandVisual, SceneBoardProps } from "@/game/board-types";
 
-const seedGeometry = new SphereGeometry(0.086, 14, 10);
-seedGeometry.scale(1, 0.72, 0.88);
-const pitGeometry = new SphereGeometry(0.4, 28, 14, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-const ringGeometry = new TorusGeometry(0.4, 0.026, 8, 28);
+function mix(x: number, y: number) {
+  let value = Math.imul(x + 3, 374761393) ^ Math.imul(y + 11, 668265263);
+  value = Math.imul(value ^ (value >>> 13), 1274126177);
+  return value >>> 0;
+}
 
-const wood = new MeshStandardMaterial({ color: "#6b3f28", roughness: 0.78, metalness: 0.03 });
-const pitMaterial = new MeshStandardMaterial({ color: "#1a0e09", roughness: 0.94, metalness: 0, side: DoubleSide });
-const seedMaterial = new MeshStandardMaterial({ color: "#f4e7cb", roughness: 0.46, metalness: 0.02 });
-const bowlSouth = new MeshStandardMaterial({ color: "#2c6b4a", roughness: 0.72 });
-const bowlNorth = new MeshStandardMaterial({ color: "#c4622d", roughness: 0.72 });
+function elongate(scaleX: number, scaleY: number, scaleZ: number) {
+  const geometry = new SphereGeometry(0.086, 14, 10);
+  geometry.scale(scaleX, scaleY, scaleZ);
+  return geometry;
+}
+
+const seedGeometries = [elongate(1, 0.72, 0.88), elongate(1.12, 0.66, 0.8), elongate(0.92, 0.78, 0.98)];
+const seedMaterials = [
+  new MeshStandardMaterial({ color: "#f3e4c4", roughness: 0.62, metalness: 0 }),
+  new MeshStandardMaterial({ color: "#c6bf96", roughness: 0.7, metalness: 0 }),
+  new MeshStandardMaterial({ color: "#b4bba6", roughness: 0.68, metalness: 0 }),
+  new MeshStandardMaterial({ color: "#e0c396", roughness: 0.64, metalness: 0 }),
+];
+
+function seedLook(pit: number, seedIndex: number) {
+  const n = mix(pit, seedIndex);
+  return {
+    geometry: seedGeometries[n % seedGeometries.length] ?? seedGeometries[0],
+    material: seedMaterials[(n >>> 8) % seedMaterials.length] ?? seedMaterials[0],
+  };
+}
+
+function paintDepth(geometry: LatheGeometry, rim: number[], well: number[]) {
+  const position = geometry.attributes.position;
+  geometry.computeBoundingBox();
+  const minY = geometry.boundingBox?.min.y ?? 0;
+  const maxY = geometry.boundingBox?.max.y ?? 1;
+  const span = Math.max(0.0001, maxY - minY);
+  const colors = new Float32Array(position.count * 3);
+  for (let index = 0; index < position.count; index += 1) {
+    const shade = ((position.getY(index) - minY) / span) ** 2;
+    colors[index * 3] = (well[0] ?? 0) + ((rim[0] ?? 0) - (well[0] ?? 0)) * shade;
+    colors[index * 3 + 1] = (well[1] ?? 0) + ((rim[1] ?? 0) - (well[1] ?? 0)) * shade;
+    colors[index * 3 + 2] = (well[2] ?? 0) + ((rim[2] ?? 0) - (well[2] ?? 0)) * shade;
+  }
+  geometry.setAttribute("color", new BufferAttribute(colors, 3));
+  geometry.computeVertexNormals();
+}
+
+const pitGeometry = new LatheGeometry(
+  [
+    new Vector2(0, -0.26),
+    new Vector2(0.14, -0.23),
+    new Vector2(0.24, -0.16),
+    new Vector2(0.32, -0.08),
+    new Vector2(0.37, -0.03),
+    new Vector2(0.4, 0),
+  ],
+  32,
+);
+paintDepth(pitGeometry, [0.42, 0.24, 0.16], [0.14, 0.07, 0.04]);
+
+const captureBowlGeometry = new LatheGeometry(
+  [
+    new Vector2(0, -0.1),
+    new Vector2(0.2, -0.06),
+    new Vector2(0.32, -0.02),
+    new Vector2(0.4, 0.02),
+    new Vector2(0.46, 0.055),
+  ],
+  28,
+);
+paintDepth(captureBowlGeometry, [0.48, 0.28, 0.18], [0.16, 0.08, 0.05]);
+
+function grainCanvas(width: number, height: number, paint: (x: number, y: number, noise: number) => [number, number, number]) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) return canvas;
+  const image = context.createImageData(width, height);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const noise = mix(x, y) / 4294967295;
+      const [red, green, blue] = paint(x, y, noise);
+      const offset = (y * width + x) * 4;
+      image.data[offset] = red;
+      image.data[offset + 1] = green;
+      image.data[offset + 2] = blue;
+      image.data[offset + 3] = 255;
+    }
+  }
+  context.putImageData(image, 0, 0);
+  return canvas;
+}
+
+function woodMaps() {
+  const width = 256;
+  const height = 64;
+  const color = grainCanvas(width, height, (x, y, noise) => {
+    const along = y / height;
+    const across = x / width;
+    const band = Math.sin(along * Math.PI * 3.2) * 0.5 + 0.5;
+    const streak = Math.sin(along * Math.PI * 9 + across * 1.4) * 0.5 + 0.5;
+    const lift = (band - 0.5) * 46 + (streak - 0.5) * 16 + (noise - 0.5) * 10;
+    return [
+      Math.round(Math.min(150, Math.max(62, 107 + lift))),
+      Math.round(Math.min(86, Math.max(28, 58 + lift * 0.42))),
+      Math.round(Math.min(52, Math.max(16, 36 + lift * 0.24))),
+    ];
+  });
+  const rough = grainCanvas(width, height, (_x, y, noise) => {
+    const band = Math.sin((y / height) * Math.PI * 3.2) * 0.5 + 0.5;
+    const value = Math.round(132 + band * 48 + noise * 14);
+    return [value, value, value];
+  });
+  const map = new CanvasTexture(color);
+  map.colorSpace = SRGBColorSpace;
+  map.wrapS = RepeatWrapping;
+  map.wrapT = RepeatWrapping;
+  map.repeat.set(0.22, 0.55);
+  map.anisotropy = 4;
+  const roughnessMap = new CanvasTexture(rough);
+  roughnessMap.colorSpace = NoColorSpace;
+  roughnessMap.wrapS = RepeatWrapping;
+  roughnessMap.wrapT = RepeatWrapping;
+  roughnessMap.repeat.set(0.22, 0.55);
+  return { map, roughnessMap };
+}
+
+const woodMapsOnce = typeof document === "undefined" ? null : woodMaps();
+const wood = new MeshStandardMaterial({
+  color: woodMapsOnce ? "#ffffff" : "#6b3a24",
+  roughness: 0.62,
+  metalness: 0.02,
+  ...(woodMapsOnce ?? {}),
+});
+const pitMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.84, metalness: 0, side: DoubleSide });
+const captureBowlMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0.02, side: DoubleSide });
+const grooveGeometry = new BoxGeometry(6.4, 0.012, 0.055);
+const grooveMaterial = new MeshStandardMaterial({ color: "#1c0e0a", roughness: 0.94, metalness: 0 });
+const ringGeometry = new TorusGeometry(0.4, 0.026, 8, 28);
+const bowlSouth = new MeshStandardMaterial({ color: "#2c6b4a", roughness: 0.55, metalness: 0, emissive: "#1f4d36", emissiveIntensity: 0.18 });
+const bowlNorth = new MeshStandardMaterial({ color: "#c4622d", roughness: 0.55, metalness: 0, emissive: "#9a4a1f", emissiveIntensity: 0.14 });
 const ringSouth = new MeshStandardMaterial({ color: "#2c6b4a", roughness: 0.48, emissive: "#1f4d36", emissiveIntensity: 0.35 });
 const ringSouthLegal = new MeshStandardMaterial({ color: "#2c6b4a", roughness: 0.38, emissive: "#2c6b4a", emissiveIntensity: 0.9 });
 const ringSouthHot = new MeshStandardMaterial({ color: "#b7e0cb", roughness: 0.35, emissive: "#2c6b4a", emissiveIntensity: 0.55 });
@@ -105,11 +243,12 @@ function SeedMesh({
     );
   });
 
+  const look = seedLook(pit, seedIndex);
   return (
     <mesh
       ref={ref}
-      geometry={seedGeometry}
-      material={seedMaterial}
+      geometry={look.geometry}
+      material={look.material}
       rotation={[0.35, rest.rotationY, rest.rotationZ]}
       scale={rest.scale}
     />
@@ -225,15 +364,18 @@ function PlayerHand({ hand, travelMs, reduced }: { hand: HandVisual; travelMs: n
   const shown = Math.min(6, hand.count);
   return (
     <group ref={ref}>
-      {Array.from({ length: shown }, (_, index) => (
-        <mesh
-          key={index}
-          geometry={seedGeometry}
-          material={seedMaterial}
-          position={[(index % 3) * 0.07 - 0.07, 0.12 + Math.floor(index / 3) * 0.08, index % 2 === 0 ? -0.03 : 0.03]}
-          rotation={[0.4, index * 0.4, 0.2]}
-        />
-      ))}
+      {Array.from({ length: shown }, (_, index) => {
+        const look = seedLook(index, index);
+        return (
+          <mesh
+            key={index}
+            geometry={look.geometry}
+            material={look.material}
+            position={[(index % 3) * 0.07 - 0.07, 0.12 + Math.floor(index / 3) * 0.08, index % 2 === 0 ? -0.03 : 0.03]}
+            rotation={[0.4, index * 0.4, 0.2]}
+          />
+        );
+      })}
       <Html center position={[0, 0.36, 0]} zIndexRange={[5, 0]} style={{ pointerEvents: "none" }}>
         <span className="inline-flex max-w-[9rem] items-center gap-1.5 rounded-full bg-paper/95 px-2 py-0.5 text-xs font-semibold text-ink shadow-sm">
           {hand.player ? <span className="truncate">{hand.player}</span> : null}
@@ -276,11 +418,12 @@ function CaptureFlight({
     <group ref={ref}>
       {Array.from({ length: shown }, (_, index) => {
         const pose = getSeedPosition(capture.pit, index + 40, shown);
+        const look = seedLook(capture.pit, index);
         return (
           <mesh
             key={index}
-            geometry={seedGeometry}
-            material={seedMaterial}
+            geometry={look.geometry}
+            material={look.material}
             position={[pose.x * 0.4, index * 0.01, pose.z * 0.4]}
             rotation={[0.3, pose.rotationY, pose.rotationZ]}
             scale={pose.scale}
@@ -294,24 +437,44 @@ function CaptureFlight({
 function Bowl({ player, count, placement }: { player: Player; count: number; placement: "side" | "end" }) {
   const place = captureBowlPosition(player, placement);
   const shown = Math.min(8, count);
+  const store = player === "player1" ? 20 : 21;
   return (
     <group position={[place.x, 0, place.z]}>
-      <mesh material={player === "player1" ? bowlSouth : bowlNorth} position={[0, -0.04, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.42, 0.34, 0.1, 24]} />
-      </mesh>
+      <mesh geometry={captureBowlGeometry} material={captureBowlMaterial} castShadow receiveShadow raycast={() => undefined} />
+      <mesh
+        geometry={ringGeometry}
+        material={player === "player1" ? bowlSouth : bowlNorth}
+        position={[0, 0.055, 0]}
+        rotation={[Math.PI / 2, 0, 0]}
+        scale={1.15}
+        raycast={() => undefined}
+      />
       {Array.from({ length: shown }, (_, index) => {
-        const pose = getSeedPosition(player === "player1" ? 20 : 21, index, Math.max(shown, 1));
+        const pose = getSeedPosition(store, index, Math.max(shown, 1));
+        const look = seedLook(store, index);
         return (
           <mesh
             key={index}
-            geometry={seedGeometry}
-            material={seedMaterial}
+            geometry={look.geometry}
+            material={look.material}
             position={[pose.x * 1.3, 0.08 + pose.y + 0.16, pose.z * 1.3]}
             rotation={[0.2, pose.rotationY, pose.rotationZ]}
             scale={pose.scale}
           />
         );
       })}
+    </group>
+  );
+}
+
+const railGrooves = [-1.66, -1.54, -1.42, 1.42, 1.54, 1.66];
+
+function RailEngraving() {
+  return (
+    <group>
+      {railGrooves.map((z) => (
+        <mesh key={z} geometry={grooveGeometry} material={grooveMaterial} position={[0, 0.022, z]} raycast={() => undefined} />
+      ))}
     </group>
   );
 }
@@ -346,7 +509,7 @@ function BoardShell({ compact }: { compact: boolean }) {
       bevelEnabled: true,
       bevelThickness: 0.035,
       bevelSize: 0.045,
-      bevelSegments: 2,
+      bevelSegments: 3,
       curveSegments: 20,
     });
     board.rotateX(Math.PI / 2);
@@ -355,6 +518,10 @@ function BoardShell({ compact }: { compact: boolean }) {
     board.translate(0, -top + 0.01, 0);
     return board;
   }, [compact]);
+
+  useEffect(() => {
+    return () => geometry.dispose();
+  }, [geometry]);
 
   return <mesh geometry={geometry} material={wood} castShadow receiveShadow raycast={() => undefined} />;
 }
@@ -392,6 +559,7 @@ function BoardModel(props: SceneBoardProps) {
         </mesh>
       )}
       <BoardShell compact={placement === "end"} />
+      <RailEngraving />
       {board.map((count, index) => (
         <Pit
           key={index}
@@ -454,10 +622,11 @@ export function OwareScene(props: SceneBoardProps) {
       <color attach="background" args={["#f3eee6"]} />
       <PreviewSettle active={Boolean(props.preview)} />
       <FrameCamera preview={props.preview} />
-      <ambientLight intensity={0.7} />
+      <ambientLight intensity={0.62} color="#fff4e8" />
       <directionalLight
         position={[3.5, 9, 5]}
-        intensity={1.4}
+        intensity={1.35}
+        color="#fff1dc"
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -468,7 +637,7 @@ export function OwareScene(props: SceneBoardProps) {
         shadow-camera-top={7}
         shadow-camera-bottom={-7}
       />
-      <directionalLight position={[-4, 3, -3]} intensity={0.28} />
+      <directionalLight position={[-4, 3, -3]} intensity={0.32} color="#ffe8d0" />
       <BoardModel {...props} />
     </Canvas>
   );
