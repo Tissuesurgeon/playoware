@@ -69,7 +69,7 @@ A round ends when a capture leaves eight or fewer seeds, when the player to move
 Houses earned are the captured seeds divided by four, ignoring a remainder. Then:
 
 - If both players earned the same number of houses, territory stays as it is. This is a drawn round. Play continues.
-- Otherwise the player who earned more houses than they currently own takes that many from the opponent. Their own houses are reclaimed first, from the right. Then the opponent’s rightmost houses are taken.
+- Otherwise the player who earned more houses than they currently own takes that many from the opponent. Their own houses are reclaimed first, from the left. Then the opponent’s rightmost houses are taken.
 - Capturing one, two, three, or four extra houses does not end the match.
 - The next round opens with four seeds in every house.
 - A player who owns only two houses still chooses which of those two to play.

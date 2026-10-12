@@ -50,7 +50,7 @@ export function openingKey(territory: readonly Player[], starter: Player): strin
 /**
  * Houses earned are complete fours. An equal count leaves territory as it is.
  * A player who earned more houses than they own takes the difference, reclaiming
- * their own houses from the right before taking the opponent's rightmost houses.
+ * their own houses from the left before taking the opponent's rightmost houses.
  */
 export function nextTerritory(territory: readonly Player[], captured: CapturedSeeds): Player[] {
   const earned: Record<Player, number> = {
@@ -64,7 +64,7 @@ export function nextTerritory(territory: readonly Player[], captured: CapturedSe
     const gain = earned[winner] - owned;
     if (gain <= 0) continue;
     const loser = opponent(winner);
-    const reclaim = rightToLeft(winner).filter((pit) => next[pit] === loser);
+    const reclaim = sidePits(winner).filter((pit) => next[pit] === loser);
     const theirs = rightToLeft(loser).filter((pit) => next[pit] === loser);
     for (const pit of [...reclaim, ...theirs].slice(0, gain)) next[pit] = winner;
   }

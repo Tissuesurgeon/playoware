@@ -5,6 +5,8 @@ import {
   TOTAL_SEEDS,
   formatMove,
   housesCaptured,
+  initialTerritory,
+  nextTerritory,
   positionKey,
   relativePitNumber,
   replayGame,
@@ -207,6 +209,35 @@ describe("game end and scoring", () => {
       expect(game.getState().board.every((seeds) => seeds === 4)).toBe(true);
       expect(game.getState().territory.filter((owner) => owner === "player1")).toHaveLength(6 + extra);
     }
+  });
+
+  it("wins back houses from the left and leaves the sixth house captured", () => {
+    const south = initialTerritory();
+    for (const pit of [2, 3, 4, 5]) south[pit] = "player2";
+    expect(nextTerritory(south, captured(20, 28)).slice(0, 6)).toEqual([
+      "player1",
+      "player1",
+      "player1",
+      "player1",
+      "player1",
+      "player2",
+    ]);
+
+    const north = initialTerritory();
+    for (const pit of [8, 9, 10, 11]) north[pit] = "player1";
+    expect(nextTerritory(north, captured(28, 20)).slice(6)).toEqual([
+      "player2",
+      "player2",
+      "player2",
+      "player2",
+      "player2",
+      "player1",
+    ]);
+  });
+
+  it("takes the opponent's sixth house when the winner already owns all six", () => {
+    expect(nextTerritory(initialTerritory(), captured(28, 20))[11]).toBe("player1");
+    expect(nextTerritory(initialTerritory(), captured(20, 28))[5]).toBe("player2");
   });
 
   it("lets a player with two houses choose either of them", () => {
